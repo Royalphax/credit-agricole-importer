@@ -1,0 +1,12 @@
+# CONFIG FILE
+CONFIG_FILE = "config.ini"
+SETTINGS_SECTION = "GlobalSettings"
+IMPORT_TRANSACTIONS_FIELD = "import-transactions"
+IMPORT_ACCOUNTS_FIELD = "import-accounts"
+IMPORT_ACCOUNT_IDS_LIST_FIELD = "import-account-ids-list"
+CREDENTIALS_SECTION = "CreditAgricole"
+BANK_REGION_FIELD = "bank-region"
+BANK_ACCOUNT_ID_FIELD = "bank-account-id"
+BANK_PASSWORD_FIELD = "bank-password"
+FIREFLY3_SECTION = "FireflyIII"
+OAUTH2_TOKEN_FIELD = "oauth2-token"
