@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from creditagricole_particuliers import Authenticator, Accounts
 from constant import *
 
@@ -9,6 +11,8 @@ class CreditAgricoleClient:
         self.account_id = BANK_ACCOUNT_ID_DEFAULT
         self.password = BANK_PASSWORD_DEFAULT
         self.enabled_accounts = IMPORT_ACCOUNT_ID_LIST_DEFAULT
+        self.get_transactions_period = GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT
+        self.max_transactions = MAX_TRANSACTIONS_PER_GET_DEFAULT
         self.session = None
 
     def validate(self):
@@ -20,6 +24,10 @@ class CreditAgricoleClient:
             raise ValueError("Your bank password must be a 6 long digit.")
         if self.enabled_accounts == IMPORT_ACCOUNT_ID_LIST_DEFAULT:
             raise ValueError("Please set your account ID list to import.")
+        if not self.get_transactions_period.isdigit() or int(self.get_transactions_period) < 0:
+            raise ValueError("Your transactions's get period must be a positive number.")
+        if not self.max_transactions.isdigit() or int(self.max_transactions) < 0:
+            raise ValueError("The maximum number of transactions to get must be a positive number.")
 
     def init_session(self):
         password_list = []
@@ -30,12 +38,16 @@ class CreditAgricoleClient:
     def get_accounts(self):
         accounts = []
         for account in Accounts(session=self.session):
-            if account.numeroCompte in self.enabled_accounts:
+            if account.numeroCompte in [x.strip() for x in self.enabled_accounts.split(",")]:
                 accounts.append(account)
         return accounts
 
     def get_transactions(self, account_id):
-        # search account
         account = Accounts(session=self.session).search(num=account_id)
 
-        operations = account.get_operations()
+        current_date = datetime.today()
+        previous_date = current_date - timedelta(days=int(self.get_transactions_period))
+        date_stop_ = current_date.strftime('%Y-%m-%d')
+        date_start_ = previous_date.strftime('%Y-%m-%d')
+
+        return [op.descr for op in account.get_operations(count=int(self.max_transactions), date_start=date_start_, date_stop=date_stop_)]
