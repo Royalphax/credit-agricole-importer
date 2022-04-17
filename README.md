@@ -1,4 +1,4 @@
-# Credit Agricole Importer
+# Credit Agricole Importer for FireflyIII
 
 Automatic import of Credit Agricole accounts and transactions into FireflyIII personal finance manager, 
 made with use of [python-creditagricole-particuliers](https://github.com/dmachard/python-creditagricole-particuliers).
