@@ -1,0 +1,4 @@
+configparser>=5.2.0
+requests>=2.27.1
+geopy>=2.2.0
+creditagricole-particuliers>=0.7.0
