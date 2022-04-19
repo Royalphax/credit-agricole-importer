@@ -20,7 +20,6 @@ cd /path/you/want
 git clone https://github.com/Royalphax/credit-agricole-importer.git
 pip install -r requirements.txt
 ```
-
 ### Usage
 ```
 python main.py
@@ -31,6 +30,8 @@ During the first run it will automatically create the ```config.ini``` file. To 
 After you successfully filled the config file, each time you run ```main.py```, it will import your transactions.
 
 ### Auto run this script
+
+To auto import your transactions on a daily, monthly or weekly basis, I recommend you to use `crontab`. [Here is an example of a tutorial](https://www.tutorialspoint.com/unix_commands/crontab.htm).
 
 ## FAQ
 
