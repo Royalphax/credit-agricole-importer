@@ -31,7 +31,7 @@ After you successfully filled the config file, each time you run ```main.py```, 
 
 ### Auto run this script
 
-To auto import your transactions on a daily, monthly or weekly basis, I recommend you to use `crontab`. [Here is an example of a tutorial](https://www.tutorialspoint.com/unix_commands/crontab.htm).
+To automatically import your transactions on a daily, monthly or weekly basis, I recommend using `crontab`. [Here is an example of a tutorial](https://www.tutorialspoint.com/unix_commands/crontab.htm).
 
 ## FAQ
 
