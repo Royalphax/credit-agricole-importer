@@ -9,9 +9,10 @@ if __name__ == '__main__':
 
     config = configparser.ConfigParser()
 
+    # Check if config file exists
     if not os.path.exists(CONFIG_FILE):
 
-        # INIT CONFIG FIRST TIME (CREATE IT)
+        # First time : init config file
         config.add_section(SETTINGS_SECTION)
         config.set(SETTINGS_SECTION, IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT)
         config.set(SETTINGS_SECTION, GET_TRANSACTIONS_PERIOD_DAYS_FIELD, GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT)
@@ -36,11 +37,11 @@ if __name__ == '__main__':
             file.close()
 
         print("Config file '" + CONFIG_FILE + "' created ! Please fill it and start this script again.")
-        print("Wiki page to help you : XXX")
+        print("Wiki page to help you : https://github.com/Royalphax/credit-agricole-importer/wiki/Config-file")
 
     else:
 
-        # INIT CONFIG
+        # Read config and init sections
         config.read(CONFIG_FILE)
         settings_section = config[SETTINGS_SECTION]
         user_account_section = config[CREDENTIALS_SECTION]
@@ -51,7 +52,7 @@ if __name__ == '__main__':
         aa_account_section = config[AA_ACCOUNT_SECTION]
         aa_tags_section = config[AA_TAGS_SECTION]
 
-        # INIT CREDIT AGRICOLE
+        # Init CreditAgricole instance
         ca_cli = CreditAgricoleClient()
         ca_cli.region = str(user_account_section.get(BANK_REGION_FIELD, BANK_REGION_DEFAULT))
         ca_cli.account_id = str(user_account_section.get(BANK_ACCOUNT_ID_FIELD, BANK_ACCOUNT_ID_DEFAULT))
@@ -62,7 +63,7 @@ if __name__ == '__main__':
         ca_cli.validate()
         ca_cli.init_session()
 
-        # INIT FIREFLY3
+        # Init Firefly3 instance
         f3_cli = Firefly3Client()
         f3_cli.name_format = str(firefly3_section.get(ACCOUNTS_NAME_FORMAT_FIELD, ACCOUNTS_NAME_FORMAT_DEFAULT))
         f3_cli.hostname = str(firefly3_section.get(HOSTNAME_FIELD, HOSTNAME_DEFAULT))
@@ -70,18 +71,25 @@ if __name__ == '__main__':
         f3_cli.init_auto_assign_values(a_rename_transaction_section, aa_budget_section, aa_category_section, aa_account_section, aa_tags_section)
         f3_cli.validate()
 
+        # Start main process
         print("Process started")
+
+        # Get Firefly3 accounts numbers
         f3_accounts = f3_cli.get_accounts(account_type="asset")
         f3_accounts_number = [account.get("attributes").get("account_number") for account in f3_accounts]
+
+        # Loop through existing CreditAgricole accounts declared in config file
         for account in ca_cli.get_accounts():
+
             name = account.account['libelleProduit']
             print("-> '" + name + "' account n°" + account.numeroCompte)
 
-            # CREATE ACCOUNT IF NOT EXISTS
+            # Check if CreditAgricole account is already on Firefly3
             if account.numeroCompte not in f3_accounts_number:
 
                 print("  -> Creating account ... ", end='')
                 if account.grandeFamilleCode == "7":
+                    # 7 is generally for investment accounts
                     print("Not an asset account!")
                     continue
 
@@ -90,10 +98,12 @@ if __name__ == '__main__':
             else:
                 account_id = f3_cli.get_account_id(account.numeroCompte)
 
-            # GET TRANSACTIONS
             print("  -> Retrieving transactions ", end='')
 
+            # Init a new set of transactions for Firefly3
             transactions = Firefly3Transactions(f3_cli)
+
+            # Loop through CreditAgricole transactions
             for ca_transaction in ca_cli.get_transactions(account.numeroCompte):
                 transactions.add_transaction(ca_transaction, account_id)
                 print(".", end='')
@@ -102,7 +112,6 @@ if __name__ == '__main__':
 
             if len(transactions) > 0:
                 print("  -> Pushing data to Firefly3 instance ", end='')
-
+                # Push transactions to Firefly3
                 transactions.post()
-
                 print(" Done!")
