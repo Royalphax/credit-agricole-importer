@@ -41,7 +41,7 @@ Use [Personal Access Token](https://docs.firefly-iii.org/api/api) in your Firefl
 
 ### Are my Credit Agricole credentials safe ?
 
-As far as your credentials are stored in the ```config.ini``` file, you must be sure that this file is not accessible from public adresses. You may secure your host machine as best as you can. **In any case, I'm not responsible if someone stole your credentials.** And if any system security expert go through here, feel free to open a discussion with me if you have any idea to improve how credentials are stored.
+As far as your credentials are stored in the ```config.ini``` file, you must be sure that this file is not accessible from public adresses. You may secure your host machine as best as you can. **In any case, I'm not responsible if someone stole your credentials.** And if any system security expert go through here, feel free to open a discussion with me on how we can improve storage method.
 
 ### Can anybody contribute ?
 
