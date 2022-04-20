@@ -1,4 +1,4 @@
 configparser>=5.2.0
 requests>=2.27.1
-geopy>=2.2.0
+urllib3>=1.26.9
 creditagricole-particuliers>=0.7.0

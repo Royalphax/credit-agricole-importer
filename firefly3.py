@@ -1,8 +1,8 @@
+from creditagricole import CreditAgricoleRegion
 from tool import *
 import requests
 import time
 import locale
-from geopy.geocoders import Nominatim
 
 from constant import *
 
@@ -98,12 +98,10 @@ class Firefly3Client:
         elif family_code == "3":
             payload["account_role"] = "savingAsset"
 
-        # Try to find in which region the account is located
-        geocoder = Nominatim(user_agent="credit-agricole-importer")
-        location = geocoder.geocode(region + ", France")
-        if location is not None:
-            payload["latitude"] = location.latitude
-            payload["longitude"] = location.longitude
+        ca_region = CreditAgricoleRegion(region)
+        if ca_region.latitude is not None and ca_region.longitude is not None:
+            payload["latitude"] = ca_region.latitude
+            payload["longitude"] = ca_region.longitude
             payload["zoom_level"] = 6
 
         return self._post(endpoint=_ACCOUNTS_ENDPOINT, payload=payload)
