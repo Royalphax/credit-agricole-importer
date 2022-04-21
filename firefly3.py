@@ -153,6 +153,8 @@ class Firefly3Transactions:
         for tag in get_key_from_value(self.f3_cli.aa_tags, transaction_name):
             tags.append(tag)
         transaction["tags"] = tags
+
+        transaction["notes"] = transaction_name
         self.payloads.append(payload)
 
     def post(self):
