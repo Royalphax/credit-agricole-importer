@@ -5,8 +5,10 @@ def get_key_from_value(dict, str_to_find):
     :return: the key where occurence is found in one of the values
     """
     output = []
+    str_to_find = str_to_find.upper()
     for key in dict.keys():
         for value in dict[key]:
+            value = value.upper()
             add_key = False
             if value.startswith("*") and value.endswith("*") and value[1:-1] in str_to_find:
                 add_key = True
@@ -17,5 +19,5 @@ def get_key_from_value(dict, str_to_find):
             elif value == str_to_find:
                 add_key = True
             if add_key and key not in output:
-                output.append(key.capitalize().replace("_", " "))
+                output.append(key.title().replace("_", " "))
     return output
