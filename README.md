@@ -10,7 +10,7 @@ made with use of [python-creditagricole-particuliers](https://github.com/dmachar
 - Auto assign budget, category, tags, expense/revenue account on transactions depending on their description*
   - And even auto rename them!*
 
-_*These features are already features of FireflyIII thanks to [automated rules](https://docs.firefly-iii.org/firefly-iii/pages-and-features/rules/). I also implemented them to be quickly able to create my rules directly in the config file._
+_*These features are already features of FireflyIII thanks to [automated rules](https://docs.firefly-iii.org/firefly-iii/pages-and-features/rules/). I also implemented them to allow you to quickly create rules directly in config file._
 
 ## How to install
 
@@ -41,7 +41,7 @@ Use [Personal Access Token](https://docs.firefly-iii.org/api/api) in your Firefl
 
 ### Are my Credit Agricole credentials safe ?
 
-As far as your credentials are stored in the ```config.ini``` file, you must be sure that this file is not accessible from public adresses. You may secure your host machine as best as you can. **In any case, I'm not responsible if someone stole your credentials.** And if any system security expert go through here, feel free to open a discussion with me if you have any idea to improve how credentials are stored.
+As far as your credentials are stored in the ```config.ini``` file, you must be sure that this file is not accessible from public adresses. You may secure your host machine as best as you can. **In any case, I'm not responsible if someone stole your credentials.** And if any system security expert go through here, feel free to open a discussion with me on how we can improve storage method.
 
 ### Can anybody contribute ?
 
