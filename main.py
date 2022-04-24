@@ -101,11 +101,11 @@ if __name__ == '__main__':
             print("  -> Retrieving transactions ", end='')
 
             # Init a new set of transactions for Firefly3
-            transactions = Firefly3Transactions(f3_cli)
+            transactions = Firefly3Transactions(f3_cli, account_id)
 
             # Loop through CreditAgricole transactions
             for ca_transaction in ca_cli.get_transactions(account.numeroCompte):
-                transactions.add_transaction(ca_transaction, account_id)
+                transactions.add_transaction(ca_transaction)
                 print(".", end='')
 
             print(" " + str(len(transactions)) + " found!")

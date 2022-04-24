@@ -2,7 +2,6 @@ from creditagricole import CreditAgricoleRegion
 from tool import *
 import requests
 import time
-import locale
 
 from constant import *
 
@@ -42,8 +41,7 @@ class Firefly3Client:
         if len(self.token) != len(PERSONAL_TOKEN_DEFAULT) or self.token == PERSONAL_TOKEN_DEFAULT:
             raise ValueError("Your firefly3 personal token isn't 980 characters long or isn't set.")
         if len(self.name_format) == 0 or BANK_ACCOUNT_NAME_PLACEHOLDER not in self.name_format:
-            raise ValueError(
-                "Your firefly3 accounts name format must contain the bank account name placeholder: " + BANK_ACCOUNT_NAME_PLACEHOLDER + ".")
+            raise ValueError("Your firefly3 accounts name format must contain the bank account name placeholder: " + BANK_ACCOUNT_NAME_PLACEHOLDER + ".")
 
         if self.hostname[-1] != "/":
             self.hostname = self.hostname + "/"
@@ -108,14 +106,20 @@ class Firefly3Client:
 
 
 class Firefly3Transactions:
-    def __init__(self, f3_cli):
+    def __init__(self, f3_cli, account_id):
         self.f3_cli = f3_cli
+        self.account_id = int(account_id)
         self.payloads = []
+        self.transfer_out = [] # [date, montant]
+        self.transfer_in = []  # [date, montant]
+        # --> On extrait pour chaque compte, une liste unique de dates. Et pour chacunes de ces dates on regarde,
+        # quel compte a emis, quel compte a reçu. Une fois qu'on les a, on crée le transfert (add_transfert?) et pas oublier
+        # de supprimer les 2 transactions du payload (ou alors juste on ne les ajotue pas au payload dans ce genre de cas
 
     def __len__(self):
         return len(self.payloads)
 
-    def add_transaction(self, ca_payload, account_id):
+    def add_transaction(self, ca_payload):
         payload = {"transactions": [{}]}
 
         transaction_name = ca_payload["libelleOperation"].strip()
@@ -124,7 +128,6 @@ class Firefly3Transactions:
         renames = get_key_from_value(self.f3_cli.a_rename_transaction, transaction_name)
         transaction["description"] = renames[0] if len(renames) > 0 else transaction_name
 
-        locale.setlocale(locale.LC_TIME, "en_GB")
         date = time.mktime(time.strptime(ca_payload["dateOperation"], '%b %d, %Y %H:%M:%S %p'))
         transaction["date"] = time.strftime("%Y-%m-%d", time.gmtime(date))
 
@@ -135,10 +138,10 @@ class Firefly3Transactions:
         if ca_payload["montant"] > 0:
             transaction["type"] = "deposit"
             transaction["source_name"] = accounts[0] if len(accounts) > 0 else "Cash account"
-            transaction["destination_id"] = int(account_id)
+            transaction["destination_id"] = self.account_id
         else:
             transaction["type"] = "withdrawal"
-            transaction["source_id"] = int(account_id)
+            transaction["source_id"] = self.account_id
             transaction["destination_name"] = accounts[0] if len(accounts) > 0 else "Cash account"
 
         budgets = get_key_from_value(self.f3_cli.aa_budget, transaction_name)
@@ -155,6 +158,8 @@ class Firefly3Transactions:
         transaction["tags"] = tags
 
         transaction["notes"] = transaction_name
+
+        if
         self.payloads.append(payload)
 
     def post(self):
