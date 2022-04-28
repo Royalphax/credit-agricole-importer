@@ -68,6 +68,9 @@ if __name__ == '__main__':
         f3_cli.name_format = str(firefly3_section.get(ACCOUNTS_NAME_FORMAT_FIELD, ACCOUNTS_NAME_FORMAT_DEFAULT))
         f3_cli.hostname = str(firefly3_section.get(HOSTNAME_FIELD, HOSTNAME_DEFAULT))
         f3_cli.token = str(firefly3_section.get(PERSONAL_TOKEN_FIELD, PERSONAL_TOKEN_DEFAULT))
+        f3_cli.auto_detect_transfers = bool(settings_section.get(AUTO_DETECT_TRANSFERS_FIELD, AUTO_DETECT_TRANSFERS_DEFAULT))
+        f3_cli.transfer_source_transaction = str(settings_section.get(TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT)).strip().split(",")
+        f3_cli.transfer_destination_transaction = str(settings_section.get(TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT)).strip().split(",")
         f3_cli.init_auto_assign_values(a_rename_transaction_section, aa_budget_section, aa_category_section, aa_account_section, aa_tags_section)
         f3_cli.validate()
 
@@ -77,6 +80,9 @@ if __name__ == '__main__':
         # Get Firefly3 accounts numbers
         f3_accounts = f3_cli.get_accounts(account_type="asset")
         f3_accounts_number = [account.get("attributes").get("account_number") for account in f3_accounts]
+
+        # Keep track of transactions for each account
+        account_transactions = []
 
         # Loop through existing CreditAgricole accounts declared in config file
         for account in ca_cli.get_accounts():
@@ -115,3 +121,10 @@ if __name__ == '__main__':
                 # Push transactions to Firefly3
                 transactions.post()
                 print(" Done!")
+
+            account_transactions.append(transactions)
+
+        if f3_cli.auto_detect_transfers:
+            print("-> Pushing transfers to Firefly3 instance ", end='')
+            Firefly3Transactions.post_transfers(account_transactions, f3_cli)
+            print(" Done!")
