@@ -248,7 +248,7 @@ class Firefly3Transactions:
 
         # Check amount of transfers
         if detected_transfers % 2 != 0 or len(payloads) * 2 != detected_transfers:
-            f3_cli.logger.log("\nWARN: Wrong quantity of transfers detected (" + str(detected_transfers) + ") for " + str(len(payloads)) + " payload(s). You must double check your \"transfer-source-transaction-name\" and \"transfer-destination-transaction-name\" because some transfers hadn't been recognized.")
+            f3_cli.logger.log_newline("WARN: Wrong quantity of transfers detected (" + str(detected_transfers) + ") for " + str(len(payloads)) + " payload(s). You must double check your \"transfer-source-transaction-name\" and \"transfer-destination-transaction-name\" because some transfers hadn't been recognized.")
 
         # Now push each payload
         for payload in payloads:

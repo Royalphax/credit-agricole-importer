@@ -10,6 +10,12 @@ class Logger:
         self.debug = debug
         self.next_line = True
 
+    def log_newline(self, message, debug=False, end='\n\r', other_tag=''):
+        if not self.next_line:
+            print("", end='\n\r')
+            self.next_line = True
+        self.log(message, debug, end, other_tag)
+
     def log(self, message, debug=False, end='\n\r', other_tag=''):
         if debug and not self.debug:
             return
