@@ -19,9 +19,19 @@ _*These features are already features of FireflyIII thanks to [automated rules](
 ## How to install
 
 ### Install requirements
+* Latest version of the code :
 ```
 cd /path/you/want
 git clone https://github.com/Royalphax/credit-agricole-importer.git
+cd credit-agricole-importer
+pip install -r requirements.txt
+```
+* or Stable and working release :
+```
+cd /path/you/want
+wget https://github.com/Royalphax/credit-agricole-importer/archive/refs/tags/v0.2.0.zip
+unzip v0.2.0.zip
+cd credit-agricole-importer-0.2.0
 pip install -r requirements.txt
 ```
 ### Usage
