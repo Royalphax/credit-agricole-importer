@@ -2,6 +2,7 @@ from creditagricole import CreditAgricoleRegion
 from tool import *
 import requests
 import time
+import json
 
 from constant import *
 
@@ -11,7 +12,9 @@ _BUDGETS_ENDPOINT = 'api/v1/budgets'
 
 
 class Firefly3Client:
-    def __init__(self):
+    def __init__(self, logger, debug):
+        self.logger = logger
+        self.debug = debug
         self.a_rename_transaction = {}
         self.aa_tags = {}
         self.aa_account = {}
@@ -29,22 +32,22 @@ class Firefly3Client:
     def _post(self, endpoint, payload):
         response = requests.post("{}{}".format(self.hostname, endpoint), json=payload, headers=self.headers)
         if response.status_code != 200:
-            raise ValueError("Request to your Firefly3 instance failed. Please double check your personal token. Error : " + str(response.json()))
+            self.logger.error("Request to your Firefly3 instance failed. Please double check your personal token. Error : " + str(response.json()))
         return response.json()
 
     def _get(self, endpoint, params=None):
         response = requests.get("{}{}".format(self.hostname, endpoint), params=params, headers=self.headers)
         if response.status_code != 200:
-            raise ValueError("Request to your Firefly3 instance failed. Please double check your personal token. Error : " + str(response.json()))
+            self.logger.error("Request to your Firefly3 instance failed. Please double check your personal token. Error : " + str(response.json()))
         return response.json()
 
     def validate(self):
         if self.hostname == HOSTNAME_DEFAULT:
-            print("WARN: The firefly3 instance HOSTNAME is the demo website.")
+            self.logger.log("WARN: The firefly3 instance HOSTNAME is the demo website.")
         if len(self.token) != len(PERSONAL_TOKEN_DEFAULT) or self.token == PERSONAL_TOKEN_DEFAULT:
-            raise ValueError("Your firefly3 personal token isn't 980 characters long or isn't set.")
+            self.logger.error("Your firefly3 personal token isn't 980 characters long or isn't set.")
         if len(self.name_format) == 0 or BANK_ACCOUNT_NAME_PLACEHOLDER not in self.name_format:
-            raise ValueError("Your firefly3 accounts name format must contain the bank account name placeholder: " + BANK_ACCOUNT_NAME_PLACEHOLDER + ".")
+            self.logger.error("Your firefly3 accounts name format must contain the bank account name placeholder: " + BANK_ACCOUNT_NAME_PLACEHOLDER + ".")
 
         if self.hostname[-1] != "/":
             self.hostname = self.hostname + "/"
@@ -124,9 +127,11 @@ class Firefly3Transactions:
         return len(self.payloads) + count
 
     def add_transaction(self, ca_payload):
+        self.f3_cli.logger.log(str(ca_payload), debug=True)
+
         payload = {"transactions": [{}]}
 
-        transaction_name = ca_payload["libelleOperation"].strip()
+        transaction_name = ' '.join(ca_payload["libelleOperation"].strip().split())
         transaction = payload["transactions"][0]
 
         renames = get_key_from_value(self.f3_cli.a_rename_transaction, transaction_name)
@@ -151,7 +156,10 @@ class Firefly3Transactions:
             tags.append(tag)
         transaction["tags"] = tags
 
-        transaction["notes"] = "CREDIT AGRICOLE NAME : " + transaction_name
+        notes = "---------- MORE DETAILS ----------"
+        for key in ca_payload.keys():
+            notes = notes + '\n\n' + str(key) + ": " + str(ca_payload[key]).strip()
+        transaction["notes"] = notes[:-2]
 
         if self.f3_cli.auto_detect_transfers and is_in_list(self.f3_cli.transfer_source_transaction, transaction_name):
             key = transaction["date"]
@@ -178,10 +186,20 @@ class Firefly3Transactions:
 
             self.payloads.append(payload)
 
+        self.f3_cli.logger.log(str(payload), debug=True)
+
     def post(self):
+        #final_payload = {"transactions": []}
+        #for i in range(len(self.payloads)):
+        #    final_payload["transactions"].append(self.payloads[i]["transactions"][0])
+        #print(final_payload)
+        #self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=final_payload)
+
         for payload in self.payloads:
-            print(".", end='')
-            self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
+            res = self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
+            if not self.f3_cli.debug:
+                self.f3_cli.logger.log(".", end='')
+            self.f3_cli.logger.log(str(res), debug=True)
 
     @staticmethod
     def post_transfers(f3transactions_list, f3_cli):
@@ -225,12 +243,14 @@ class Firefly3Transactions:
 
         # Check amount of transfers
         if detected_transfers % 2 != 0 or len(payloads) * 2 != detected_transfers:
-            print("\nWARN: Wrong quantity of transfers detected (" + str(detected_transfers) + ") for " + str(len(payloads)) + " payload(s). You must double check your \"transfer-source-transaction-name\" and \"transfer-destination-transaction-name\" because some transfers hadn't been recognized.")
+            f3_cli.logger("\nWARN: Wrong quantity of transfers detected (" + str(detected_transfers) + ") for " + str(len(payloads)) + " payload(s). You must double check your \"transfer-source-transaction-name\" and \"transfer-destination-transaction-name\" because some transfers hadn't been recognized.")
 
         # Now push each payload
         for payload in payloads:
-            print(".", end='')
-            f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
+            res = f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
+            if not f3_cli.debug:
+                f3_cli.logger(".", end='')
+            f3_cli.logger("\n" + res, debug=True, end='')
 
 
 

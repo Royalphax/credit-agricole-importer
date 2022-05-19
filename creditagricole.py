@@ -8,7 +8,8 @@ import requests
 
 class CreditAgricoleClient:
 
-    def __init__(self):
+    def __init__(self, logger):
+        self.logger = logger
         self.region = BANK_REGION_DEFAULT
         self.account_id = BANK_ACCOUNT_ID_DEFAULT
         self.password = BANK_PASSWORD_DEFAULT
@@ -19,19 +20,19 @@ class CreditAgricoleClient:
 
     def validate(self):
         if self.region == BANK_REGION_DEFAULT:
-            raise ValueError("Please set your bank account region.")
+            self.logger.error("Please set your bank account region.")
         if self.region not in CreditAgricoleRegion.REGIONS.keys():
-            raise ValueError("This bank account region doesn't exist.")
+            self.logger.error("This bank account region doesn't exist.")
         if not self.account_id.isdigit() or len(self.account_id) != len(BANK_ACCOUNT_ID_DEFAULT) or self.account_id == BANK_ACCOUNT_ID_DEFAULT:
-            raise ValueError("Your bank account ID must be a 11 long digit.")
+            self.logger.error("Your bank account ID must be a 11 long digit.")
         if not self.password.isdigit() or len(self.password) != len(BANK_PASSWORD_DEFAULT) or self.password == BANK_PASSWORD_DEFAULT:
-            raise ValueError("Your bank password must be a 6 long digit.")
+            self.logger.error("Your bank password must be a 6 long digit.")
         if self.enabled_accounts == IMPORT_ACCOUNT_ID_LIST_DEFAULT:
-            raise ValueError("Please set your account ID list to import.")
+            self.logger.error("Please set your account ID list to import.")
         if not self.get_transactions_period.isdigit() or int(self.get_transactions_period) < 0:
-            raise ValueError("Your transactions's get period must be a positive number.")
+            self.logger.error("Your transactions's get period must be a positive number.")
         if not self.max_transactions.isdigit() or int(self.max_transactions) < 0:
-            raise ValueError("The maximum number of transactions to get must be a positive number.")
+            self.logger.error("The maximum number of transactions to get must be a positive number.")
 
     def init_session(self):
         password_list = []

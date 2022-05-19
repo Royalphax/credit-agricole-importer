@@ -4,9 +4,14 @@ import os
 from constant import *
 from creditagricole import CreditAgricoleClient
 from firefly3 import Firefly3Client, Firefly3Transactions
+from logger import Logger
 
 if __name__ == '__main__':
 
+    # Init logger
+    logger = Logger()
+
+    # Init config parser
     config = configparser.ConfigParser()
 
     # Check if config file exists
@@ -14,17 +19,26 @@ if __name__ == '__main__':
 
         # First time : init config file
         config.add_section(SETTINGS_SECTION)
-        config.set(SETTINGS_SECTION, IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT)
-        config.set(SETTINGS_SECTION, GET_TRANSACTIONS_PERIOD_DAYS_FIELD, GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT)
-        config.set(SETTINGS_SECTION, MAX_TRANSACTIONS_PER_GET_FIELD, MAX_TRANSACTIONS_PER_GET_DEFAULT)
-        config.add_section(CREDENTIALS_SECTION)
-        config.set(CREDENTIALS_SECTION, BANK_REGION_FIELD, BANK_REGION_DEFAULT)
-        config.set(CREDENTIALS_SECTION, BANK_ACCOUNT_ID_FIELD, BANK_ACCOUNT_ID_DEFAULT)
-        config.set(CREDENTIALS_SECTION, BANK_PASSWORD_FIELD, BANK_PASSWORD_DEFAULT)
+        config.set(SETTINGS_SECTION, SAVE_LOGS_FIELD, SAVE_LOGS_DEFAULT)
+        config.set(SETTINGS_SECTION, MAX_LOG_FILES_FIELD, MAX_LOG_FILES_DEFAULT)
+        config.set(SETTINGS_SECTION, DEBUG_FIELD, DEBUG_DEFAULT)
+        config.set(SETTINGS_SECTION, AUTO_DETECT_TRANSFERS_FIELD, AUTO_DETECT_TRANSFERS_DEFAULT)
+
+        config.add_section(CREDIT_AGRICOLE_SECTION)
+        config.set(CREDIT_AGRICOLE_SECTION, BANK_REGION_FIELD, BANK_REGION_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, BANK_ACCOUNT_ID_FIELD, BANK_ACCOUNT_ID_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, BANK_PASSWORD_FIELD, BANK_PASSWORD_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, GET_TRANSACTIONS_PERIOD_DAYS_FIELD, GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, MAX_TRANSACTIONS_PER_GET_FIELD, MAX_TRANSACTIONS_PER_GET_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT)
+
         config.add_section(FIREFLY3_SECTION)
         config.set(FIREFLY3_SECTION, ACCOUNTS_NAME_FORMAT_FIELD, ACCOUNTS_NAME_FORMAT_DEFAULT)
         config.set(FIREFLY3_SECTION, HOSTNAME_FIELD, HOSTNAME_DEFAULT)
         config.set(FIREFLY3_SECTION, PERSONAL_TOKEN_FIELD, PERSONAL_TOKEN_DEFAULT)
+
         config.add_section(A_RENAME_TRANSACTION_SECTION)
         config.add_section(AA_BUDGET_SECTION)
         config.add_section(AA_CATEGORY_SECTION)
@@ -36,46 +50,52 @@ if __name__ == '__main__':
             file.flush()
             file.close()
 
-        print("Config file '" + CONFIG_FILE + "' created ! Please fill it and start this script again.")
-        print("Wiki page to help you : https://github.com/Royalphax/credit-agricole-importer/wiki/Config-file")
+        logger.log("Config file '" + CONFIG_FILE + "' created ! Please fill it and start this script again.")
+        logger.log("Wiki page to help you : https://github.com/Royalphax/credit-agricole-importer/wiki/Config-file")
 
     else:
 
         # Read config and init sections
         config.read(CONFIG_FILE)
         settings_section = config[SETTINGS_SECTION]
-        user_account_section = config[CREDENTIALS_SECTION]
+        credit_agricole_section = config[CREDIT_AGRICOLE_SECTION]
         firefly3_section = config[FIREFLY3_SECTION]
         a_rename_transaction_section = config[A_RENAME_TRANSACTION_SECTION]
         aa_budget_section = config[AA_BUDGET_SECTION]
         aa_category_section = config[AA_CATEGORY_SECTION]
         aa_account_section = config[AA_ACCOUNT_SECTION]
         aa_tags_section = config[AA_TAGS_SECTION]
+        
+        # Init global settings        
+        debug = settings_section.get(DEBUG_FIELD, DEBUG_DEFAULT) == "True"
+        logger.debug = debug
+        save_logs = settings_section.get(SAVE_LOGS_FIELD, SAVE_LOGS_DEFAULT) == "True"
+        max_logs = int(settings_section.get(MAX_LOG_FILES_FIELD, MAX_LOG_FILES_DEFAULT))
 
         # Init CreditAgricole instance
-        ca_cli = CreditAgricoleClient()
-        ca_cli.region = str(user_account_section.get(BANK_REGION_FIELD, BANK_REGION_DEFAULT))
-        ca_cli.account_id = str(user_account_section.get(BANK_ACCOUNT_ID_FIELD, BANK_ACCOUNT_ID_DEFAULT))
-        ca_cli.password = str(user_account_section.get(BANK_PASSWORD_FIELD, BANK_PASSWORD_DEFAULT))
-        ca_cli.enabled_accounts = str(settings_section.get(IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT))
-        ca_cli.get_transactions_period = str(settings_section.get(GET_TRANSACTIONS_PERIOD_DAYS_FIELD, GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT))
-        ca_cli.max_transactions = str(settings_section.get(MAX_TRANSACTIONS_PER_GET_FIELD, MAX_TRANSACTIONS_PER_GET_DEFAULT))
+        ca_cli = CreditAgricoleClient(logger)
+        ca_cli.region = credit_agricole_section.get(BANK_REGION_FIELD, BANK_REGION_DEFAULT)
+        ca_cli.account_id = credit_agricole_section.get(BANK_ACCOUNT_ID_FIELD, BANK_ACCOUNT_ID_DEFAULT)
+        ca_cli.password = credit_agricole_section.get(BANK_PASSWORD_FIELD, BANK_PASSWORD_DEFAULT)
+        ca_cli.enabled_accounts = credit_agricole_section.get(IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT)
+        ca_cli.get_transactions_period = credit_agricole_section.get(GET_TRANSACTIONS_PERIOD_DAYS_FIELD, GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT)
+        ca_cli.max_transactions = credit_agricole_section.get(MAX_TRANSACTIONS_PER_GET_FIELD, MAX_TRANSACTIONS_PER_GET_DEFAULT)
         ca_cli.validate()
         ca_cli.init_session()
 
         # Init Firefly3 instance
-        f3_cli = Firefly3Client()
-        f3_cli.name_format = str(firefly3_section.get(ACCOUNTS_NAME_FORMAT_FIELD, ACCOUNTS_NAME_FORMAT_DEFAULT))
-        f3_cli.hostname = str(firefly3_section.get(HOSTNAME_FIELD, HOSTNAME_DEFAULT))
-        f3_cli.token = str(firefly3_section.get(PERSONAL_TOKEN_FIELD, PERSONAL_TOKEN_DEFAULT))
-        f3_cli.auto_detect_transfers = bool(settings_section.get(AUTO_DETECT_TRANSFERS_FIELD, AUTO_DETECT_TRANSFERS_DEFAULT))
-        f3_cli.transfer_source_transaction = str(settings_section.get(TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT)).strip().split(",")
-        f3_cli.transfer_destination_transaction = str(settings_section.get(TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT)).strip().split(",")
+        f3_cli = Firefly3Client(logger, debug)
+        f3_cli.name_format = firefly3_section.get(ACCOUNTS_NAME_FORMAT_FIELD, ACCOUNTS_NAME_FORMAT_DEFAULT)
+        f3_cli.hostname = firefly3_section.get(HOSTNAME_FIELD, HOSTNAME_DEFAULT)
+        f3_cli.token = firefly3_section.get(PERSONAL_TOKEN_FIELD, PERSONAL_TOKEN_DEFAULT)
+        f3_cli.auto_detect_transfers = settings_section.get(AUTO_DETECT_TRANSFERS_FIELD, AUTO_DETECT_TRANSFERS_DEFAULT) == "True"
+        f3_cli.transfer_source_transaction = settings_section.get(TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT).strip().split(",")
+        f3_cli.transfer_destination_transaction = settings_section.get(TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT).strip().split(",")
         f3_cli.init_auto_assign_values(a_rename_transaction_section, aa_budget_section, aa_category_section, aa_account_section, aa_tags_section)
         f3_cli.validate()
 
         # Start main process
-        print("Process started")
+        logger.log("Process started, debug=" + str(debug) + ", save_logs=" + str(save_logs))
 
         # Get Firefly3 accounts numbers
         f3_accounts = f3_cli.get_accounts(account_type="asset")
@@ -88,23 +108,23 @@ if __name__ == '__main__':
         for account in ca_cli.get_accounts():
 
             name = account.account['libelleProduit']
-            print("-> '" + name + "' account n°" + account.numeroCompte)
+            logger.log("-> '" + name + "' account n°" + account.numeroCompte)
 
             # Check if CreditAgricole account is already on Firefly3
             if account.numeroCompte not in f3_accounts_number:
 
-                print("  -> Creating account ... ", end='')
+                logger.log("  -> Creating account ... ", end='')
                 if account.grandeFamilleCode == "7":
                     # 7 is generally for investment accounts
-                    print("Not an asset account!")
+                    logger.log("Not an asset account!")
                     continue
 
                 account_id = f3_cli.create_account(name, ca_cli.region, account.numeroCompte, account.grandeFamilleCode).get("data")["id"]
-                print("Done!")
+                logger.log("Done!")
             else:
                 account_id = f3_cli.get_account_id(account.numeroCompte)
 
-            print("  -> Retrieving transactions ", end='')
+            logger.log("  -> Retrieving transactions ", end=('\n\r' if debug else ''))
 
             # Init a new set of transactions for Firefly3
             transactions = Firefly3Transactions(f3_cli, account_id)
@@ -112,19 +132,24 @@ if __name__ == '__main__':
             # Loop through CreditAgricole transactions
             for ca_transaction in ca_cli.get_transactions(account.numeroCompte):
                 transactions.add_transaction(ca_transaction)
-                print(".", end='')
+                if not debug:
+                    logger.log(".", end='')
 
-            print(" " + str(len(transactions)) + " found!")
+            logger.log(" " + str(len(transactions)) + " found!")
 
             if len(transactions) > 0:
-                print("  -> Pushing data to Firefly3 instance ", end='')
+                logger.log("  -> Pushing data to Firefly3 instance ", end=('\n\r' if debug else ''))
                 # Push transactions to Firefly3
                 transactions.post()
-                print(" Done!")
+                logger.log(" Done!")
 
             account_transactions.append(transactions)
 
         if f3_cli.auto_detect_transfers:
-            print("-> Pushing transfers to Firefly3 instance ", end='')
+            logger.log("-> Pushing transfers to Firefly3 instance ", end=('\n\r' if debug else ''))
             Firefly3Transactions.post_transfers(account_transactions, f3_cli)
-            print(" Done!")
+            logger.log(" Done!")
+
+        if save_logs:
+            logger.write_log(max_logs)
+
