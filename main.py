@@ -89,8 +89,8 @@ if __name__ == '__main__':
         f3_cli.hostname = firefly3_section.get(HOSTNAME_FIELD, HOSTNAME_DEFAULT)
         f3_cli.token = firefly3_section.get(PERSONAL_TOKEN_FIELD, PERSONAL_TOKEN_DEFAULT)
         f3_cli.auto_detect_transfers = settings_section.get(AUTO_DETECT_TRANSFERS_FIELD, AUTO_DETECT_TRANSFERS_DEFAULT) == "True"
-        f3_cli.transfer_source_transaction = settings_section.get(TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT).strip().split(",")
-        f3_cli.transfer_destination_transaction = settings_section.get(TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT).strip().split(",")
+        f3_cli.transfer_source_transaction = credit_agricole_section.get(TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT).strip().split(",")
+        f3_cli.transfer_destination_transaction = credit_agricole_section.get(TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT).strip().split(",")
         f3_cli.init_auto_assign_values(a_rename_transaction_section, aa_budget_section, aa_category_section, aa_account_section, aa_tags_section)
         f3_cli.validate()
 

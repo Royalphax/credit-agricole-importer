@@ -10,7 +10,7 @@ class Logger:
         self.debug = debug
         self.next_line = True
 
-    def log(self, message, debug=False, end='\n\r'):
+    def log(self, message, debug=False, end='\n\r', other_tag=''):
         if debug and not self.debug:
             return
         if not self.next_line:
@@ -18,7 +18,7 @@ class Logger:
             self.logs[len(self.logs) - 1] = self.logs[len(self.logs) - 1] + log
         else:
             now = datetime.now()
-            log = now.strftime("[%H:%M:%S]") + ("[DEBUG] " if debug else " ") + message
+            log = now.strftime("[%H:%M:%S]") + ("[DEBUG]" if debug else "") + other_tag + " " + message
             self.logs.append(log)
         print(log, end=end)
         self.next_line = end == '\n\r'

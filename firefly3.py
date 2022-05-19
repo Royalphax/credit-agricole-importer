@@ -127,7 +127,7 @@ class Firefly3Transactions:
         return len(self.payloads) + count
 
     def add_transaction(self, ca_payload):
-        self.f3_cli.logger.log(str(ca_payload), debug=True)
+        self.f3_cli.logger.log(str(ca_payload), debug=True, other_tag="[CA PAYLOAD]")
 
         payload = {"transactions": [{}]}
 
@@ -161,19 +161,24 @@ class Firefly3Transactions:
             notes = notes + '\n\n' + str(key) + ": " + str(ca_payload[key]).strip()
         transaction["notes"] = notes[:-2]
 
+        is_transfer = True
         if self.f3_cli.auto_detect_transfers and is_in_list(self.f3_cli.transfer_source_transaction, transaction_name):
+
             key = transaction["date"]
             if key not in self.transfer_out:
                 self.transfer_out[key] = []
             self.transfer_out[key].append(payload)
 
         elif self.f3_cli.auto_detect_transfers and is_in_list(self.f3_cli.transfer_destination_transaction, transaction_name):
+
             key = transaction["date"]
             if key not in self.transfer_in:
                 self.transfer_in[key] = []
             self.transfer_in[key].append(payload)
 
         else:
+            is_transfer = False
+
             accounts = get_key_from_value(self.f3_cli.aa_account, transaction_name)
             if ca_payload["montant"] > 0:
                 transaction["type"] = "deposit"
@@ -186,7 +191,7 @@ class Firefly3Transactions:
 
             self.payloads.append(payload)
 
-        self.f3_cli.logger.log(str(payload), debug=True)
+        self.f3_cli.logger.log(str(payload), debug=True, other_tag=("" if not is_transfer else "[TRANSFER]"))
 
     def post(self):
         #final_payload = {"transactions": []}
@@ -243,14 +248,14 @@ class Firefly3Transactions:
 
         # Check amount of transfers
         if detected_transfers % 2 != 0 or len(payloads) * 2 != detected_transfers:
-            f3_cli.logger("\nWARN: Wrong quantity of transfers detected (" + str(detected_transfers) + ") for " + str(len(payloads)) + " payload(s). You must double check your \"transfer-source-transaction-name\" and \"transfer-destination-transaction-name\" because some transfers hadn't been recognized.")
+            f3_cli.logger.log("\nWARN: Wrong quantity of transfers detected (" + str(detected_transfers) + ") for " + str(len(payloads)) + " payload(s). You must double check your \"transfer-source-transaction-name\" and \"transfer-destination-transaction-name\" because some transfers hadn't been recognized.")
 
         # Now push each payload
         for payload in payloads:
             res = f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
             if not f3_cli.debug:
-                f3_cli.logger(".", end='')
-            f3_cli.logger("\n" + res, debug=True, end='')
+                f3_cli.logger.log(".", end='')
+            f3_cli.logger.log(str(res), debug=True)
 
 
 
