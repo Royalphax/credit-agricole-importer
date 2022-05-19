@@ -1,3 +1,7 @@
+![python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white) 
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/royalphax/credit-agricole-importer?color=brightgreen)
+![GitHub Repo stars](https://img.shields.io/github/stars/royalphax/credit-agricole-importer?color=yellow)
+![GitHub issues](https://img.shields.io/github/issues/royalphax/credit-agricole-importer?color=yellow)
 # Credit Agricole Importer for FireflyIII
 
 Automatic import of [Credit Agricole](https://www.credit-agricole.fr/) accounts and transactions into [FireflyIII](https://github.com/firefly-iii/firefly-iii) personal finance manager, 
