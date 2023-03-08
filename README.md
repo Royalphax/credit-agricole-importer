@@ -1,6 +1,7 @@
-[![HTML 5](https://img.shields.io/badge/HTML-5+-orange?style=flat&logo=html5&logoColor=white)](https://developer.mozilla.org/fr/docs/Web/HTML)
-[![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-yellow?style=flat&logo=javascript&logoColor=white)](https://developer.mozilla.org/fr/docs/Web/JavaScript)
-[![PHP 8](https://img.shields.io/badge/PHP-8+-blue?style=flat&logo=php&logoColor=white)](https://www.php.net/releases/8.0/fr.php)
+![python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white) 
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/royalphax/credit-agricole-importer?color=brightgreen)
+![GitHub Repo stars](https://img.shields.io/github/stars/royalphax/credit-agricole-importer?color=yellow)
+![GitHub issues](https://img.shields.io/github/issues/royalphax/credit-agricole-importer?color=yellow)
 
 # Credit Agricole Importer for FireflyIII
 
