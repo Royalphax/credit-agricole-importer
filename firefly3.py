@@ -129,10 +129,15 @@ class Firefly3Transactions:
     def add_transaction(self, ca_payload):
         self.f3_cli.logger.log(str(ca_payload), debug=True, other_tag="[CA PAYLOAD]")
 
-        payload = {"transactions": [{}]}
+        payload = {
+            "error_if_duplicate_hash": "true",
+            "transactions": [{}]
+        }
 
         transaction_name = ' '.join(ca_payload["libelleOperation"].strip().split())
         transaction = payload["transactions"][0]
+
+        transaction['external_id'] = str(ca_payload["fitid"]).strip()
 
         renames = get_key_from_value(self.f3_cli.a_rename_transaction, transaction_name)
         transaction["description"] = renames[0] if len(renames) > 0 else transaction_name
@@ -201,10 +206,14 @@ class Firefly3Transactions:
         #self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=final_payload)
 
         for payload in self.payloads:
-            res = self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
-            if not self.f3_cli.debug:
-                self.f3_cli.logger.log(".", end='')
-            self.f3_cli.logger.log(str(res), debug=True)
+            try:
+                res = self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
+                if not self.f3_cli.debug:
+                    self.f3_cli.logger.log(".", end='')
+                self.f3_cli.logger.log(str(res), debug=True)
+            except Exception as e:
+                if not "Duplicate of transaction " in str(e):
+                    raise e
 
     @staticmethod
     def post_transfers(f3transactions_list, f3_cli):
