@@ -4,6 +4,7 @@ import os
 from constant import *
 from creditagricole import CreditAgricoleClient
 from firefly3 import Firefly3Client, Firefly3Transactions
+from collections import defaultdict
 from logger import Logger
 
 if __name__ == '__main__':
@@ -104,10 +105,20 @@ if __name__ == '__main__':
         # Keep track of transactions for each account
         account_transactions = []
 
-        # Loop through existing CreditAgricole accounts declared in config file
-        for account in ca_cli.get_accounts():
+        accounts = ca_cli.get_accounts()
+        account_name_counts = defaultdict(int)
 
-            name = account.account['libelleProduit']
+        # Detect duplicate account names
+        for account in accounts:
+            account_name_counts[account.account['libelleProduit']] += 1
+
+        # Loop through existing CreditAgricole accounts declared in config file
+        for account in accounts:
+            if account_name_counts[account.account['libelleProduit']] > 1:
+                name = f"{account.account['libelleProduit']} [{account.numeroCompte}]"
+            else:
+                name = account.account['libelleProduit']
+
             logger.log("-> '" + name + "' account n°" + account.numeroCompte)
 
             # Check if CreditAgricole account is already on Firefly3
