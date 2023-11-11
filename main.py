@@ -25,7 +25,7 @@ if __name__ == '__main__':
         config.set(SETTINGS_SECTION, AUTO_DETECT_TRANSFERS_FIELD, AUTO_DETECT_TRANSFERS_DEFAULT)
 
         config.add_section(CREDIT_AGRICOLE_SECTION)
-        config.set(CREDIT_AGRICOLE_SECTION, BANK_REGION_FIELD, BANK_REGION_DEFAULT)
+        config.set(CREDIT_AGRICOLE_SECTION, BANK_DEPARTMENT_FIELD, BANK_DEPARTMENT_DEFAULT)
         config.set(CREDIT_AGRICOLE_SECTION, BANK_ACCOUNT_ID_FIELD, BANK_ACCOUNT_ID_DEFAULT)
         config.set(CREDIT_AGRICOLE_SECTION, BANK_PASSWORD_FIELD, BANK_PASSWORD_DEFAULT)
         config.set(CREDIT_AGRICOLE_SECTION, IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT)
@@ -74,7 +74,7 @@ if __name__ == '__main__':
 
         # Init CreditAgricole instance
         ca_cli = CreditAgricoleClient(logger)
-        ca_cli.region = credit_agricole_section.get(BANK_REGION_FIELD, BANK_REGION_DEFAULT)
+        ca_cli.department = credit_agricole_section.get(BANK_DEPARTMENT_FIELD, BANK_DEPARTMENT_DEFAULT)
         ca_cli.account_id = credit_agricole_section.get(BANK_ACCOUNT_ID_FIELD, BANK_ACCOUNT_ID_DEFAULT)
         ca_cli.password = credit_agricole_section.get(BANK_PASSWORD_FIELD, BANK_PASSWORD_DEFAULT)
         ca_cli.enabled_accounts = credit_agricole_section.get(IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT)
@@ -119,7 +119,7 @@ if __name__ == '__main__':
                     logger.log("Not an asset account!")
                     continue
 
-                account_id = f3_cli.create_account(name, ca_cli.region, account.numeroCompte, account.grandeFamilleCode).get("data")["id"]
+                account_id = f3_cli.create_account(name, ca_cli.department, account.numeroCompte, account.grandeFamilleCode).get("data")["id"]
                 logger.log("Done!")
             else:
                 account_id = f3_cli.get_account_id(account.numeroCompte)
