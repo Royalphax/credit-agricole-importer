@@ -3,7 +3,7 @@ import os
 
 from constant import *
 from creditagricole import CreditAgricoleClient
-from firefly3 import Firefly3Client, Firefly3Transactions
+from firefly3 import Firefly3Client, Firefly3Importer
 from collections import defaultdict
 from logger import Logger
 
@@ -32,8 +32,6 @@ if __name__ == '__main__':
         config.set(CREDIT_AGRICOLE_SECTION, IMPORT_ACCOUNT_ID_LIST_FIELD, IMPORT_ACCOUNT_ID_LIST_DEFAULT)
         config.set(CREDIT_AGRICOLE_SECTION, GET_TRANSACTIONS_PERIOD_DAYS_FIELD, GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT)
         config.set(CREDIT_AGRICOLE_SECTION, MAX_TRANSACTIONS_PER_GET_FIELD, MAX_TRANSACTIONS_PER_GET_DEFAULT)
-        config.set(CREDIT_AGRICOLE_SECTION, TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT)
-        config.set(CREDIT_AGRICOLE_SECTION, TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT)
 
         config.add_section(FIREFLY3_SECTION)
         config.set(FIREFLY3_SECTION, ACCOUNTS_NAME_FORMAT_FIELD, ACCOUNTS_NAME_FORMAT_DEFAULT)
@@ -90,76 +88,62 @@ if __name__ == '__main__':
         f3_cli.hostname = firefly3_section.get(HOSTNAME_FIELD, HOSTNAME_DEFAULT)
         f3_cli.token = firefly3_section.get(PERSONAL_TOKEN_FIELD, PERSONAL_TOKEN_DEFAULT)
         f3_cli.auto_detect_transfers = settings_section.get(AUTO_DETECT_TRANSFERS_FIELD, AUTO_DETECT_TRANSFERS_DEFAULT) == "True"
-        f3_cli.transfer_source_transaction = credit_agricole_section.get(TRANSFER_SOURCE_TRANSACTION_NAME_FIELD, TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT).strip().split(",")
-        f3_cli.transfer_destination_transaction = credit_agricole_section.get(TRANSFER_DESTINATION_TRANSACTION_NAME_FIELD, TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT).strip().split(",")
         f3_cli.init_auto_assign_values(a_rename_transaction_section, aa_budget_section, aa_category_section, aa_account_section, aa_tags_section)
         f3_cli.validate()
 
         # Start main process
         logger.log("Process started, debug=" + str(debug) + ", save_logs=" + str(save_logs))
 
-        # Get Firefly3 accounts numbers
-        f3_accounts = f3_cli.get_accounts(account_type="asset")
-        f3_accounts_number = [account.get("attributes").get("account_number") for account in f3_accounts]
+        # Get Firefly3 accounts by number
+        f3_account_dict = {}
+        for f3_account in f3_cli.get_accounts():
+            account_key = f3_account.get('attributes').get('account_number')
+            f3_account_dict.update({ account_key: f3_account })
 
-        # Keep track of transactions for each account
-        account_transactions = []
-
-        accounts = ca_cli.get_accounts()
+        # Get Credit-Agricole accounts and Detect duplicate account names
+        ca_account_dict = {}
         account_name_counts = defaultdict(int)
+        for ca_account in ca_cli.get_accounts():
+            account_key = ca_account.account.get('libelleProduit')
+            ca_numeroCompte = ca_account.numeroCompte
+            account_name_counts[account_key] += 1
+            ca_account_dict.update({ ca_numeroCompte: ca_account })
 
-        # Detect duplicate account names
-        for account in accounts:
-            account_name_counts[account.account['libelleProduit']] += 1
-
+        f3_importer_list = []
         # Loop through existing CreditAgricole accounts declared in config file
-        for account in accounts:
-            if account_name_counts[account.account['libelleProduit']] > 1:
-                name = f"{account.account['libelleProduit']} [{account.numeroCompte}]"
+        for ca_numeroCompte, ca_account in ca_account_dict.items():
+            account_key = ca_account.account.get('libelleProduit')
+            if account_name_counts[account_key] > 1:
+                name = f"{account_key} [{ca_numeroCompte}]"
             else:
-                name = account.account['libelleProduit']
+                name = account_key
 
-            logger.log("-> '" + name + "' account n°" + account.numeroCompte)
+            logger.log(f"-> '{name}' account n°{ca_numeroCompte}")
 
             # Check if CreditAgricole account is already on Firefly3
-            if account.numeroCompte not in f3_accounts_number:
-
+            if ca_numeroCompte in f3_account_dict.keys():
+                f3_account = f3_account_dict.get(ca_numeroCompte)
+            else:
                 logger.log("  -> Creating account ... ", end='')
-                if account.grandeFamilleCode == "7":
-                    # 7 is generally for investment accounts
+                if ca_account.grandeFamilleCode == "7": # 7 is generally for investment accounts                    
                     logger.log("Not an asset account!")
                     continue
 
-                account_id = f3_cli.create_account(name, ca_cli.department, account.numeroCompte, account.grandeFamilleCode).get("data")["id"]
-                logger.log("Done!")
-            else:
-                account_id = f3_cli.get_account_id(account.numeroCompte)
+                f3_account = f3_cli.create_account(name, ca_cli.department, ca_numeroCompte, ca_account.grandeFamilleCode).get('data')
+                f3_account_dict.update({ ca_numeroCompte: f3_account })
+                logger.log("Done!")            
+            f3_account_id = f3_account.get('id')
 
             logger.log("  -> Retrieving transactions ", end=('\n\r' if debug else ''))
-
+            ca_transactions = ca_cli.get_transactions(ca_numeroCompte)
+            
             # Init a new set of transactions for Firefly3
-            transactions = Firefly3Transactions(f3_cli, account_id)
+            f3_importer = Firefly3Importer(f3_cli, f3_account_id, ca_transactions)
+            f3_importer_list.append(f3_importer)
 
-            # Loop through CreditAgricole transactions
-            for ca_transaction in ca_cli.get_transactions(account.numeroCompte):
-                transactions.add_transaction(ca_transaction)
-                if not debug:
-                    logger.log(".", end='')
+            logger.log(" " + str(len(f3_importer)) + " found!")
 
-            logger.log(" " + str(len(transactions)) + " found!")
-
-            if len(transactions) > 0:
-                logger.log("  -> Pushing data to Firefly3 instance ", end=('\n\r' if debug else ''))
-                # Push transactions to Firefly3
-                transactions.post()
-                logger.log(" Done!")
-
-            account_transactions.append(transactions)
-
-        if f3_cli.auto_detect_transfers:
-            logger.log("-> Pushing transfers to Firefly3 instance ", end=('\n\r' if debug else ''))
-            Firefly3Transactions.post_transfers(account_transactions, f3_cli)
-            logger.log(" Done!")
+        Firefly3Importer.doImport(f3_importer_list, f3_cli)
 
         if save_logs:
             logger.write_log(max_logs)

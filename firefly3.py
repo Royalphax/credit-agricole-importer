@@ -2,14 +2,21 @@ from creditagricole import CreditAgricoleRegion
 from tool import *
 import requests
 import time
+from collections import defaultdict
+import copy
 import json
-
+from datetime import datetime
 from constant import *
 
 _TRANSACTIONS_ENDPOINT = 'api/v1/transactions'
 _ACCOUNTS_ENDPOINT = 'api/v1/accounts'
 _BUDGETS_ENDPOINT = 'api/v1/budgets'
 
+
+class GetOrPostException(Exception):
+    def __init__(self, message, response_json):
+        super().__init__(message)
+        self.response_json = response_json
 
 class Firefly3Client:
     def __init__(self, logger, debug):
@@ -25,21 +32,21 @@ class Firefly3Client:
         self.hostname = HOSTNAME_DEFAULT
         self.name_format = ACCOUNTS_NAME_FORMAT_DEFAULT
         self.auto_detect_transfers = bool(AUTO_DETECT_TRANSFERS_DEFAULT)
-        self.transfer_source_transaction = TRANSFER_SOURCE_TRANSACTION_NAME_DEFAULT.strip().split(",")
-        self.transfer_destination_transaction = TRANSFER_DESTINATION_TRANSACTION_NAME_DEFAULT.strip().split(",")
         self.headers = None
 
     def _post(self, endpoint, payload):
         response = requests.post("{}{}".format(self.hostname, endpoint), json=payload, headers=self.headers)
+        response_json = response.json()
         if response.status_code != 200:
-            self.logger.error("Request to your Firefly3 instance failed. Please double check your personal token. Error : " + str(response.json()))
-        return response.json()
+            raise GetOrPostException("POST-Request to your Firefly3 instance failed. Please double check your personal token.", response_json)            
+        return response_json
 
     def _get(self, endpoint, params=None):
         response = requests.get("{}{}".format(self.hostname, endpoint), params=params, headers=self.headers)
+        response_json = response.json()
         if response.status_code != 200:
-            self.logger.error("Request to your Firefly3 instance failed. Please double check your personal token. Error : " + str(response.json()))
-        return response.json()
+            raise GetOrPostException("GET-Request to your Firefly3 instance failed. Please double check your personal token.", response_json)
+        return response_json
 
     def validate(self):
         if self.hostname == HOSTNAME_DEFAULT:
@@ -70,24 +77,14 @@ class Firefly3Client:
         for key in aa_tags_section.keys():
             self.aa_tags[key] = [e.strip() for e in aa_tags_section.get(key, "").split(",")]
 
-    def get_budget_id(self, name, create_if_not_exists=True):
-        budgets = self._get(_BUDGETS_ENDPOINT).get("data")
-        for budget in budgets:
-            if budget["attributes"]["name"] == name:
-                return budget["id"]
-        if create_if_not_exists:
-            return self._post(_BUDGETS_ENDPOINT, {"name": name}).get("data")["id"]
-        return "-1"
+    def get_budgets(self):
+        return self._get(_BUDGETS_ENDPOINT).get("data")
 
-    def get_account_id(self, account_number):
-        accounts = self._get(_ACCOUNTS_ENDPOINT).get("data")
-        for account in accounts:
-            if account["attributes"]["account_number"] == account_number:
-                return account["id"]
-        return "-1"
+    def create_budget(self, name):
+        return self._post(_BUDGETS_ENDPOINT, {"name": name}).get("data")
 
-    def get_accounts(self, account_type="asset"):
-        return self._get(_ACCOUNTS_ENDPOINT, params={"type": account_type}).get("data")
+    def get_accounts(self, account_type = "asset"):
+        return self._get(_ACCOUNTS_ENDPOINT, params = {"type": account_type}).get("data")
 
     def create_account(self, name, region, account_number, family_code):
         payload = {
@@ -111,160 +108,236 @@ class Firefly3Client:
         return self._post(endpoint=_ACCOUNTS_ENDPOINT, payload=payload)
 
 
-class Firefly3Transactions:
-    def __init__(self, f3_cli, account_id):
-        self.f3_cli = f3_cli
-        self.account_id = int(account_id)
-        self.payloads = []
-        self.transfer_out = {}
-        self.transfer_in = {}
+class Firefly3Importer:
 
     def __len__(self):
-        count = 0
-        for transfer_list in [self.transfer_in, self.transfer_out]:
-            for date in transfer_list:
-                count = count + len(transfer_list[date])
-        return len(self.payloads) + count
+        return len(self.withdrawals.keys()) + len(self.deposits.keys())
 
-    def add_transaction(self, ca_payload):
-        self.f3_cli.logger.log(str(ca_payload), debug=True, other_tag="[CA PAYLOAD]")
+    def __init__(self, f3_cli, account_id, ca_transactions):
+        self.f3_cli = f3_cli
+        self.account_id = int(account_id)
+        self.withdrawals = {}
+        self.deposits = {}
+        self.budgets = {}
+        self.budgets = {}
 
-        payload = {
-            "error_if_duplicate_hash": "true",
-            "transactions": [{}]
-        }
+        for budget in f3_cli.get_budgets():
+            budget_key = budget.get('attributes').get('name')
+            self.budgets.update({ 
+                budget_key: budget
+            })
 
-        transaction_name = ' '.join(ca_payload["libelleOperation"].strip().split())
-        transaction = payload["transactions"][0]
+        for ca_transaction in ca_transactions: 
+            f3_cli.logger.log(str(ca_transaction), debug=True)
 
-        transaction['external_id'] = str(ca_payload["fitid"]).strip()
+            f3_transaction = self.ca_to_f3(ca_transaction)
+            f3_transaction_type = f3_transaction.get('type')
+            f3_transaction_external_id = f3_transaction.get('external_id')
+            if f3_transaction_type == 'withdrawal':
+                self.withdrawals[f3_transaction_external_id] = f3_transaction
+            if f3_transaction_type == 'deposit':
+                self.deposits[f3_transaction_external_id] = f3_transaction
+
+            f3_cli.logger.log(str(f3_transaction), debug=True)
+
+    def ca_to_f3(self, ca_transaction):
+        transaction_name = ' '.join(ca_transaction["libelleOperation"].strip().split())
+
+        external_id = str(ca_transaction["fitid"]).strip()
 
         renames = get_key_from_value(self.f3_cli.a_rename_transaction, transaction_name)
-        transaction["description"] = renames[0] if len(renames) > 0 else transaction_name
+        description = renames[0] if len(renames) > 0 else transaction_name
 
-        date = time.mktime(time.strptime(ca_payload["dateOperation"], '%b %d, %Y, %H:%M:%S %p'))
-        transaction["date"] = time.strftime("%Y-%m-%dT%T", time.gmtime(date))
+        date = time.mktime(time.strptime(ca_transaction["dateOperation"], '%b %d, %Y, %H:%M:%S %p'))
+        date = time.strftime("%Y-%m-%dT%T", time.gmtime(date))
 
-        transaction["amount"] = abs(ca_payload["montant"])
-        transaction["currency_code"] = ca_payload["idDevise"]
+        amount = abs(ca_transaction["montant"])
+        currency_code = ca_transaction["idDevise"]
 
         budgets = get_key_from_value(self.f3_cli.aa_budget, transaction_name)
-        if len(budgets) != 0:
-            transaction["budget_id"] = self.f3_cli.get_budget_id(budgets[0])
+        budget_id = self.f3_cli.get_budget_id(budgets[0]) if len(budgets) != 0 else None
 
-        categories = get_key_from_value(self.f3_cli.aa_category, transaction_name)
-        if len(categories) != 0:
-            transaction["category_name"] = categories[0]
+        categories = get_key_from_value(self.f3_cli.aa_category, transaction_name)        
+        category_name = categories[0] if len(categories) != 0 else None
 
-        tags = [ca_payload["libelleTypeOperation"].strip()]
+        tags = []
+        tags.append(self.remove_unnecessary_spaces(ca_transaction["libelleTypeOperation"]))
         for tag in get_key_from_value(self.f3_cli.aa_tags, transaction_name):
             tags.append(tag)
-        transaction["tags"] = tags
 
         notes = "---------- MORE DETAILS ----------"
-        for key in ca_payload.keys():
-            notes = notes + '\n\n' + str(key) + ": " + str(ca_payload[key]).strip()
-        transaction["notes"] = notes[:-2]
+        for key in ca_transaction.keys():
+            notes = notes + '\n\n' + str(key) + ": " + str(ca_transaction[key]).strip()
+        notes = notes[:-2]
 
-        is_transfer = True
-        if self.f3_cli.auto_detect_transfers and is_in_list(self.f3_cli.transfer_source_transaction, transaction_name):
+        accounts = get_key_from_value(self.f3_cli.aa_account, transaction_name)
 
-            key = transaction["date"]
-            if key not in self.transfer_out:
-                self.transfer_out[key] = []
-            self.transfer_out[key].append(payload)
+        isWithdrawal = ca_transaction["montant"] < 0
+        isDeposit = ca_transaction["montant"] > 0
 
-        elif self.f3_cli.auto_detect_transfers and is_in_list(self.f3_cli.transfer_destination_transaction, transaction_name):
+        type = "withdrawal" if isWithdrawal else "deposit" if isDeposit else None
+        subject_name = accounts[0] if len(accounts) > 0 else "Cash account"
+        source_id = self.account_id if isWithdrawal else None
+        source_name = subject_name if isDeposit else None
+        destination_id = self.account_id if isDeposit else None
+        destination_name = subject_name if isWithdrawal else None
+        internal_reference = self.remove_unnecessary_spaces(ca_transaction["referenceClient"])
 
-            key = transaction["date"]
-            if key not in self.transfer_in:
-                self.transfer_in[key] = []
-            self.transfer_in[key].append(payload)
+        # in some transactions, like "ca_codeTypeOperation == '00'" (VIREMENT EN VOTRE FAVEUR) this could be a nice way to identify the destination name of the transaction
+        #subject_name = self.libelleOperation_without_referenceClient(self.remove_unnecessary_spaces(ca_transaction.get('libelleOperation')), internal_reference)
 
-        else:
-            is_transfer = False
+        # not used except if you look into the notes. but isn't that an important field ?!
+        #additional_information = self.remove_unnecessary_spaces(ca_transaction["libelleComplementaire"])
 
-            accounts = get_key_from_value(self.f3_cli.aa_account, transaction_name)
-            if ca_payload["montant"] > 0:
-                transaction["type"] = "deposit"
-                transaction["source_name"] = accounts[0] if len(accounts) > 0 else "Cash account"
-                transaction["destination_id"] = self.account_id
-            else:
-                transaction["type"] = "withdrawal"
-                transaction["source_id"] = self.account_id
-                transaction["destination_name"] = accounts[0] if len(accounts) > 0 else "Cash account"
-
-            self.payloads.append(payload)
-
-        self.f3_cli.logger.log(str(payload), debug=True, other_tag=("" if not is_transfer else "[TRANSFER]"))
-
-    def post(self):
-        #final_payload = {"transactions": []}
-        #for i in range(len(self.payloads)):
-        #    final_payload["transactions"].append(self.payloads[i]["transactions"][0])
-        #print(final_payload)
-        #self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=final_payload)
-
-        for payload in self.payloads:
-            try:
-                res = self.f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
-                if not self.f3_cli.debug:
-                    self.f3_cli.logger.log(".", end='')
-                self.f3_cli.logger.log(str(res), debug=True)
-            except Exception as e:
-                if not "Duplicate of transaction " in str(e):
-                    raise e
+        return {
+            'internal_reference': internal_reference,
+            'description': description,
+            'amount': amount,
+            'currency_code': currency_code,
+            'type': type,
+            'source_id': source_id,
+            'source_name': source_name,
+            'destination_id': destination_id,
+            'destination_name': destination_name,
+            'budget_id': budget_id,
+            'date': date,
+            'external_id':external_id,
+            'category_name': category_name,
+            'tags': tags,
+            'notes': notes,    
+        }
 
     @staticmethod
-    def post_transfers(f3transactions_list, f3_cli):
-        payloads = []
-        detected_transfers = 0
+    def remove_unnecessary_spaces(string):
+        return ' '.join(string.strip().split())
 
-        # Loop through all transaction packages
-        for f3_from_transactions in f3transactions_list:
-            # Count detected transfers for later test
-            detected_transfers = detected_transfers + len(f3_from_transactions) - len(f3_from_transactions.payloads)
-            # Loop through dates of outgoing transfers of the above transaction package
-            for date_out in f3_from_transactions.transfer_out.keys():
-                # Loop through outgoing transfers for the above date
-                for transfer_out in f3_from_transactions.transfer_out[date_out]:
-                    # Get the amount
-                    amount_out = transfer_out["transactions"][0]["amount"]
-                    # Now loop through other transaction packages
-                    for f3_to_transactions in f3transactions_list:
-                        # If the above transaction package is the same than the first one, skip  it
-                        if f3_to_transactions.account_id == f3_from_transactions.account_id:
-                            continue
-                        # Loop through dates of incoming transfers
-                        for date_in in f3_to_transactions.transfer_in.keys():
-                            # If the incoming transfer date is the same than our outgoing transfer date, check amounts
-                            if date_in == date_out:
-                                # Loop through incoming transfers
-                                for transfer_in in f3_to_transactions.transfer_in[date_in]:
-                                    # Get the amount
-                                    amount_in = transfer_in["transactions"][0]["amount"]
-                                    # If incoming transfer amount is the same than outgoing transfer amount,
-                                    # it means that we found a corresponding incoming transfer for our outgoing transfer
-                                    if amount_in == amount_out:
-                                        transfer_out["transactions"][0]["type"] = "transfer"
-                                        # We clarify the transfer payload (who's the source and destination)
-                                        transfer_out["transactions"][0]["source_id"] = f3_from_transactions.account_id
-                                        transfer_out["transactions"][0]["destination_id"] = f3_to_transactions.account_id
-                                        # We rename the transaction
-                                        transfer_out["transactions"][0]["description"] = "Personal transfer"
-                                        # We save the payload to push it later
-                                        payloads.append(transfer_out)
+    @staticmethod
+    def libelleOperation_without_referenceClient(libelleOperation, referenceClient):
+        # Split the cleaned string by spaces
+        splitted = libelleOperation.split()
 
-        # Check amount of transfers
-        if detected_transfers % 2 != 0 or len(payloads) * 2 != detected_transfers:
-            f3_cli.logger.log_newline("WARN: Wrong quantity of transfers detected (" + str(detected_transfers) + ") for " + str(len(payloads)) + " payload(s). You must double check your \"transfer-source-transaction-name\" and \"transfer-destination-transaction-name\" because some transfers hadn't been recognized.")
+        # Iterate over the split results and join them by spaces
+        for i in range(1, len(splitted) + 1):
+            cleaned_libelleOperation = ' '.join(splitted[:i])
+            recombined_libelleOperation = f'{cleaned_libelleOperation} {referenceClient}'[:len(libelleOperation)]
 
-        # Now push each payload
-        for payload in payloads:
-            res = f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload=payload)
-            if not f3_cli.debug:
-                f3_cli.logger.log(".", end='')
-            f3_cli.logger.log(str(res), debug=True)
+            if recombined_libelleOperation == libelleOperation:
+                return cleaned_libelleOperation
+        return libelleOperation
 
+    @staticmethod
+    def extract_transfers(f3_transactions, f3_cli):
+        transfers = []
+        annulations = []
+        withdrawals = {}
+        deposits = {}
 
+        for f3_transaction in f3_transactions:
+            withdrawals.update(f3_transaction.withdrawals.copy())
+            deposits.update(f3_transaction.deposits.copy())
 
+        # searching for transfers
+        for withdrawal_fitid, withdrawal in withdrawals.items():
+            # the fitid/external_id of transfers always differ by 1
+            deposit_fitid = str(int(withdrawal_fitid) + 1)
+            deposit = deposits.get(deposit_fitid)
+
+            date = withdrawal.get('date')
+            amount = withdrawal.get('amount')
+            description = withdrawal.get('description')
+
+            isTransfer = deposit != None and withdrawal.get('source_id') != deposit.get('destination_id')
+            # if we found a deposit with the fitid 1 higher than the withdrawal, and source != destination
+            if isTransfer:                        
+                type = 'transfer'
+                category_name = withdrawal.get('category_name')
+                currency_code = withdrawal.get('currency_code')
+                budget_id = withdrawal.get('budget_id')
+                source_id = withdrawal.get('source_id')
+                source_name = withdrawal.get('source_name')
+                destination_id = deposit.get('destination_id')
+                destination_name = deposit.get('destination_name')
+                tags = list(set(withdrawal.get('tags', []) + deposit.get('tags', [])))
+                internal_reference = withdrawal.get('internal_reference')            
+                external_id = f"{withdrawal.get('external_id')}-{deposit.get('external_id')}" # storing here both external_ids so that we can find and delete the source trasactions later on
+                notes = ', '.join([withdrawal.get('notes'), deposit.get('notes')])
+
+                f3_cli.logger.log(f"transfer detected => [{date}] '{description}': {amount}")
+                transfer = {
+                    'description': description,
+                    'category_name':category_name,
+                    'date': date,
+                    'type': type,
+                    'amount': amount,
+                    'currency_code': currency_code,
+                    'budget_id': budget_id,
+                    'source_id': source_id,
+                    'source_name': source_name,
+                    'destination_id': destination_id,
+                    'destination_name': destination_name,
+                    'tags': tags,
+                    'internal_reference': internal_reference,
+                    'external_id': external_id,
+                    'notes': notes,
+                }
+                transfers.append(transfer)
+
+            isAnnulation = deposit != None and deposit.get('codeTypeOperation') == "81"
+            if isAnnulation:
+                f3_cli.logger.log(f"annulation detected => [{date}] '{description}': {amount}")
+                annulations.append({
+                    'external_id': external_id,
+                })
+
+        for transfer in (transfers + annulations):
+            for f3_transaction in f3_transactions:
+                external_id = transfer.get('external_id')
+                fitids = external_id.split('-')
+                withdrawal_fitid = fitids[0]
+                if withdrawal_fitid in f3_transaction.withdrawals.keys():
+                    del f3_transaction.withdrawals[withdrawal_fitid]
+                deposit_fitid = fitids[1]
+                if deposit_fitid in f3_transaction.deposits.keys():
+                    del f3_transaction.deposits[deposit_fitid]
+
+        return transfers
+
+    @staticmethod
+    def doImport(f3_importer_list, f3_cli):
+        transactions = []
+
+        if f3_cli.auto_detect_transfers:
+            transfers = Firefly3Importer.extract_transfers(f3_importer_list, f3_cli)
+            transactions.extend(transfers)
+
+        for f3_importer in f3_importer_list:
+            transactions.extend(f3_importer.withdrawals.values())
+            transactions.extend(f3_importer.deposits.values())
+
+        transactions_len = len(transactions)
+
+        if transactions_len > 0:
+            f3_cli.logger.log(f'-> Pushing {transactions_len} transactions to Firefly3 instance.')
+            sorted_transactions = sorted(transactions, key=lambda x: x['date'])
+            for transaction in sorted_transactions:
+                duplicates_count = 0;
+
+                try:
+                    print(f"[{transaction.get('date')}] ({transaction.get('external_id')}) {transaction.get('type')}: {transaction.get('amount')} | {transaction.get('description')}")
+                    res = f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload={
+                        "error_if_duplicate_hash": "true",
+                        "transactions": [transaction]
+                    })
+                    f3_cli.logger.log(str(res), debug=True)
+                except GetOrPostException as e:
+                    message = e.response_json.get('message')
+                    if not "Duplicate of transaction " in str(message):
+                        print(transaction)
+                        raise Exception(message)
+                    f3_cli.logger.log(f'skipped duplicate_ {transaction}', debug=True)
+                    duplicates_count += 1
+
+                if duplicates_count == 1:
+                    f3_cli.logger.log('1 duplicate skipped')        
+                elif duplicates_count > 1:
+                    f3_cli.logger.log(f'{duplicates_count} duplicates skipped')                 
