@@ -51,8 +51,8 @@ class Firefly3Client:
     def validate(self):
         if self.hostname == HOSTNAME_DEFAULT:
             self.logger.log("WARN: The firefly3 instance HOSTNAME is the demo website.")
-        if len(self.token) != len(PERSONAL_TOKEN_DEFAULT) or self.token == PERSONAL_TOKEN_DEFAULT:
-            self.logger.error("Your firefly3 personal token isn't 980 characters long or isn't set.")
+        if self.token == PERSONAL_TOKEN_DEFAULT:
+            self.logger.error("Your firefly3 personal token isn't set.")
         if len(self.name_format) == 0 or BANK_ACCOUNT_NAME_PLACEHOLDER not in self.name_format:
             self.logger.error("Your firefly3 accounts name format must contain the bank account name placeholder: " + BANK_ACCOUNT_NAME_PLACEHOLDER + ".")
 
