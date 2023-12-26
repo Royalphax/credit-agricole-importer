@@ -102,6 +102,7 @@ class CreditAgricoleRegion:
         "valdefrance": "Val de France",
     }
 
+    # Some matches are not very precise... for example 29 could be "cotes d'armor" or "finistere" ... but we use it only to give to firefly the map location of the bank. So the approximation is acceptable (feel free to improve it).
     DEPARTMENTS_TO_REGIONS = {
         '01': 'sudrhonealpes',
         '02': 'briepicardie',
