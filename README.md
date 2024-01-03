@@ -52,7 +52,7 @@ To automatically import your transactions on a daily, monthly or weekly basis, I
 
 ### How can I get my FireflyIII `personal-token` ?
 
-Use [Personal Access Token](https://docs.firefly-iii.org/api/api) in your FireflyIII instance Profile menu.
+Use [Personal Access Token](https://docs.firefly-iii.org/how-to/firefly-iii/features/api/#personal-access-token_1) in your FireflyIII instance Profile menu.
 
 ### Are my Credit Agricole credentials safe ?
 
