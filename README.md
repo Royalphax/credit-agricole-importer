@@ -15,24 +15,24 @@ made with use of [python-creditagricole-particuliers](https://github.com/dmachar
 - Auto assign budget, category, tags, expense/revenue account on transactions depending on their description*
   - And even auto rename them!*
 
-_*These features are already features of FireflyIII thanks to [automated rules](https://docs.firefly-iii.org/firefly-iii/pages-and-features/rules/). I also implemented them to allow you to quickly create rules directly in config file._
+_*These features are already features of FireflyIII thanks to [automated rules](https://docs.firefly-iii.org/firefly-iii/pages-and-features/rules/). I also implemented them to allow you to quickly create rules directly in the config file._
 
 ## How to install
 
 ### Install requirements
-* Latest version of the code :
+* Stable and working release :
+```
+cd /path/you/want
+wget https://github.com/Royalphax/credit-agricole-importer/archive/refs/tags/v0.3.0.zip
+unzip v0.3.0.zip
+cd credit-agricole-importer-0.3.0
+pip install -r requirements.txt
+```
+* or Latest version of the code :
 ```
 cd /path/you/want
 git clone https://github.com/Royalphax/credit-agricole-importer.git
 cd credit-agricole-importer
-pip install -r requirements.txt
-```
-* or Stable and working release :
-```
-cd /path/you/want
-wget https://github.com/Royalphax/credit-agricole-importer/archive/refs/tags/v0.2.0.zip
-unzip v0.2.0.zip
-cd credit-agricole-importer-0.2.0
 pip install -r requirements.txt
 ```
 ### Usage
@@ -56,12 +56,14 @@ Use [Personal Access Token](https://docs.firefly-iii.org/api/api) in your Firefl
 
 ### Are my Credit Agricole credentials safe ?
 
-As far as your credentials are stored in the ```config.ini``` file, you must be sure that this file is not accessible from public adresses. You may secure your host machine as best as you can. **In any case, I'm not responsible if someone stole your credentials.** And if any system security expert go through here, feel free to open a discussion with me on how we can improve storage method.
+When it comes to storing your credentials in the ```config.ini``` file, it's crucial to ensure that this file is not accessible from public addresses. You should make every effort to secure your host machine as effectively as possible. **However, please note that I cannot be held responsible if someone manages to steal your credentials.** 
+
+If any system security experts happen to come across this, please don't hesitate to initiate a discussion with me on how we can enhance our storage methods. Your insights and expertise would be greatly appreciated.
 
 ### Can anybody contribute ?
 
-Of course yes, If you have any improvement ideas, or you want to implement new features by yourself, don't hesitate. I'm also very open to pull requests 😃
+Certainly! If you have any improvement ideas or wish to implement new features yourself, please don't hesitate to do so. I'm open to pull requests, but I do take a thorough and meticulous approach when reviewing them before merging. **Your contributions are highly appreciated!** 😃
 
 ## Donate ☕
 
-If you found this project useful, you can thank me by buying me a coffee [here](https://www.paypal.com/donate/?hosted_button_id=JK6FX89RB8K5Y). Enter your email address and I will send you a picture of the coffee you bought from me!
+In the spirit of collaboration, this project thrives thanks to the dedicated efforts of its contributors. I encourage you to explore their profiles and acknowledge their valuable contributions. However, if you'd like to show your appreciation with a small token of support, you can buy me a coffee through the following link  [here](https://www.paypal.com/donate/?hosted_button_id=JK6FX89RB8K5Y).
