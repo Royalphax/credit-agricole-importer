@@ -6,6 +6,20 @@ import urllib.parse
 import requests
 
 
+class CreditAgricoleAuthenticator(Authenticator):
+    def __init__(self, username, password, ca_region):
+        """custom authenticator class"""
+        self.url = "https://www.credit-agricole.fr"
+        self.ssl_verify = True
+        self.username = username
+        self.password = password
+        self.department = "none"
+        self.regional_bank_url = "ca-" + ca_region
+        self.cookies = None
+
+        self.authenticate()
+
+
 class CreditAgricoleClient:
 
     def __init__(self, logger):
@@ -16,13 +30,22 @@ class CreditAgricoleClient:
         self.enabled_accounts = IMPORT_ACCOUNT_ID_LIST_DEFAULT
         self.get_transactions_period = GET_TRANSACTIONS_PERIOD_DAYS_DEFAULT
         self.max_transactions = MAX_TRANSACTIONS_PER_GET_DEFAULT
+        self.region_id = None
         self.session = None
 
     def validate(self):
         if self.department == BANK_DEPARTMENT_DEFAULT:
-            self.logger.error("Please set your bank account region.")
-        if self.department not in CreditAgricoleRegion.DEPARTMENTS_TO_REGIONS.keys():
-            self.logger.error("This department doesn't exist.")
+            self.logger.error("Please set your bank account department.")
+        self.region_id = CreditAgricoleRegion.get_ca_region(self.department)
+        if self.region_id is None:
+            self.logger.error("Unknown department number. Please contact the developers.")
+        if len(self.region_id) > 1:
+            msg = "Unfortunately your department number is not enough to know what is your CA region. Please replace your department number by one of the following CA region :\n"
+            for ca_reg in self.region_id:
+                msg = msg + "-> " + BANK_DEPARTMENT_FIELD + " = " + ca_reg + " (if your accounts are managed by Credit Agricole " + CA_REGIONS[ca_reg] + ")\n\r"
+            self.logger.error(msg)
+        else:
+            self.region_id = self.region_id[0]
         if not self.account_id.isdigit() or len(self.account_id) != len(BANK_ACCOUNT_ID_DEFAULT) or self.account_id == BANK_ACCOUNT_ID_DEFAULT:
             self.logger.error("Your bank account ID must be a 11 long digit.")
         if not self.password.isdigit() or len(self.password) != len(BANK_PASSWORD_DEFAULT) or self.password == BANK_PASSWORD_DEFAULT:
@@ -38,7 +61,7 @@ class CreditAgricoleClient:
         password_list = []
         for i in range(len(self.password)):
             password_list.append(int(self.password[i]))
-        self.session = Authenticator(username=self.account_id, password=password_list, department=self.department)
+        self.session = CreditAgricoleAuthenticator(username=self.account_id, password=password_list, ca_region=self.region_id)
 
     def get_accounts(self):
         accounts = []
@@ -60,167 +83,124 @@ class CreditAgricoleClient:
 
 class CreditAgricoleRegion:
 
-    REGIONS = {
-        "alpesprovence": "Alpes Provence",
-        "alsace-vosges": "Alsace Vosges",
-        "anjou-maine": "Anjou Maine",
-        "aquitaine": "Aquitaine",
-        "atlantique-vendee": "Atlantique Vendée",
-        "briepicardie": "Brie Picardie",
-        "centrest": "Centre Est",
-        "centrefrance": "Centre France",
-        "centreloire": "Centre Loire",
-        "centreouest": "Centre Ouest",
-        "cb": "Champagne Bourgogne",
-        "cmds": "Charente Maritime Deux-Sèvres",
-        "charente-perigord": "Charente Périgord",
-        "corse": "Corse",
-        "cotesdarmor": "Côtes d'Armor",
-        "des-savoie": "Des Savoie",
-        "finistere": "Finistère",
-        "franchecomte": "Franche Comté",
-        "guadeloupe": "Guadeloupe",
-        "illeetvilaine": "Ille et Vilaine",
-        "languedoc": "Languedoc",
-        "loirehauteloire": "Loire Haute-Loire",
-        "lorraine": "Lorraine",
-        "martinique": "Martinique",
-        "morbihan": "Morbihan",
-        "norddefrance": "Nord de France",
-        "nord-est": "Nord Est",
-        "nmp": "Nord Midi Pyrénées",
-        "normandie": "Normandie",
-        "normandie-seine": "Normandie Seine",
-        "paris": "Paris",
-        "pca": "Provence Côte d'Azur",
-        "pyrenees-gascogne": "Pyrénées Gascogne",
-        "reunion": "Réunion",
-        "sudmed": "Sud Méditerranée",
-        "sudrhonealpes": "Sud Rhône Alpes",
-        "toulouse31": "Toulouse",
-        "tourainepoitou": "Touraine Poitou",
-        "valdefrance": "Val de France",
-    }
+    def __init__(self, ca_region):
 
-    # Some matches are not very precise... for example 29 could be "cotes d'armor" or "finistere" ... but we use it only to give to firefly the map location of the bank. So the approximation is acceptable (feel free to improve it).
-    DEPARTMENTS_TO_REGIONS = {
-        '01': 'sudrhonealpes',
-        '02': 'briepicardie',
-        '05': 'alpesprovence',
-        '06': 'alpesprovence',
-        '07': 'sudrhonealpes',
-        '08': 'nord-est',
-        '09': 'pyrenees-gascogne',
-        '10': 'nord-est',
-        '11': 'languedoc',
-        '13': 'alpesprovence',
-        '14': 'normandie',
-        '15': 'cmds',
-        '16': 'charente-perigord',
-        '17': 'centreouest',
-        '18': 'centreloire',
-        '21': 'centrefrance',
-        '22': 'cotesdarmor',
-        '24': 'aquitaine',
-        '25': 'franchecomte',
-        '26': 'sudrhonealpes',
-        '27': 'normandie',
-        '28': 'centrest',
-        '29': 'finistere',
-        '30': 'languedoc',
-        '31': 'pyrenees-gascogne',
-        '32': 'pyrenees-gascogne',
-        '33': 'aquitaine',
-        '34': 'sudmed',
-        '35': 'illeetvilaine',
-        '36': 'centrest',
-        '37': 'centrest',
-        '37': 'tourainepoitou',
-        '38': 'sudrhonealpes',
-        '39': 'franchecomte',
-        '40': 'aquitaine',
-        '40': 'pyrenees-gascogne',
-        '41': 'centrest',
-        '41': 'tourainepoitou',
-        '42': 'loirehauteloire',
-        '42': 'sudrhonealpes',
-        '43': 'cmds',
-        '43': 'loirehauteloire',
-        '44': 'atlantique-vendee',
-        '45': 'centrest',
-        '47': 'aquitaine',
-        '48': 'languedoc',
-        '48': 'sudmed',
-        '49': 'anjou-maine',
-        '50': 'normandie',
-        '51': 'nord-est',
-        '52': 'nord-est',
-        '53': 'anjou-maine',
-        '54': 'lorraine',
-        '55': 'lorraine',
-        '55': 'nord-est',
-        '56': 'morbihan',
-        '57': 'lorraine',
-        '57': 'nord-est',
-        '58': 'centrefrance',
-        '59': 'norddefrance',
-        '60': 'briepicardie',
-        '61': 'normandie',
-        '62': 'norddefrance',
-        '63': 'loirehauteloire',
-        '64': 'pyrenees-gascogne',
-        '66': 'languedoc',
-        '66': 'sudmed',
-        '67': 'alsace-vosges',
-        '67': 'nord-est',
-        '68': 'alsace-vosges',
-        '68': 'nord-est',
-        '69': 'loirehauteloire',
-        '69': 'sudrhonealpes',
-        '70': 'franchecomte',
-        '71': 'centrefrance',
-        '72': 'anjou-maine',
-        '73': 'des-savoie',
-        '73': 'sudrhonealpes',
-        '74': 'des-savoie',
-        '74': 'sudrhonealpes',
-        '75': 'paris',
-        '76': 'normandie',
-        '76': 'normandie-seine',
-        '77': 'valdefrance',
-        '79': 'centreouest',
-        '80': 'briepicardie',
-        '83': 'pca',
-        '84': 'pca',
-        '85': 'atlantique-vendee',
-        '86': 'centreouest',
-        '86': 'tourainepoitou',
-        '88': 'lorraine',
-        '88': 'nord-est',
-        '971': 'guadeloupe',
-        '972': 'martinique',
-        '974': 'reunion',
-        '9A': 'cb',
-        '9B': 'cb'
-    }        
-
-    def __init__(self, department_id):
-        if department_id not in self.DEPARTMENTS_TO_REGIONS.keys():
-            raise ValueError("This department doesn't exist.")
-
-        region_id = self.DEPARTMENTS_TO_REGIONS[department_id]
-
-        if region_id not in self.REGIONS.keys():
-            raise ValueError("This Credit Agricole region doesn't exist.")
-
-        self.name = self.REGIONS[region_id]
+        self.name = CA_REGIONS[ca_region]
         self.longitude = None
         self.latitude = None
 
         # Find the bank region location
         address = "Credit Agricole " + self.name + ", France"
-        url = 'https://nominatim.openstreetmap.org/search.php?q=' + urllib.parse.quote(address) +'&format=jsonv2'
+        url = 'https://nominatim.openstreetmap.org/search.php?q=' + urllib.parse.quote(address) + '&format=jsonv2'
         response = requests.get(url).json()
         if len(response) > 0 and "lon" in response[0] and "lat" in response[0]:
             self.longitude = str(response[0]['lon'])
             self.latitude = str(response[0]['lat'])
+
+    @staticmethod
+    def get_ca_region(department_id: str):
+        if department_id in CA_REGIONS.keys():
+            return [department_id]
+        department_id = str(int(department_id)) if department_id.isdigit() else department_id
+        for key, value in DEPARTMENTS_TO_CA_REGIONS.items():
+            if department_id in key:
+                return value
+        return None
+
+
+CA_REGIONS = {
+    "alpesprovence": "Alpes Provence",
+    "alsace-vosges": "Alsace Vosges",
+    "anjou-maine": "Anjou Maine",
+    "aquitaine": "Aquitaine",
+    "atlantique-vendee": "Atlantique Vendée",
+    "briepicardie": "Brie Picardie",
+    "centrest": "Centre Est",
+    "centrefrance": "Centre France",
+    "centreloire": "Centre Loire",
+    "centreouest": "Centre Ouest",
+    "cb": "Champagne Bourgogne",
+    "cmds": "Charente Maritime Deux-Sèvres",
+    "charente-perigord": "Charente Périgord",
+    "corse": "Corse",
+    "cotesdarmor": "Côtes d'Armor",
+    "des-savoie": "Des Savoie",
+    "finistere": "Finistère",
+    "franchecomte": "Franche Comté",
+    "guadeloupe": "Guadeloupe",
+    "illeetvilaine": "Ille et Vilaine",
+    "languedoc": "Languedoc",
+    "loirehauteloire": "Loire Haute-Loire",
+    "lorraine": "Lorraine",
+    "martinique": "Martinique",
+    "morbihan": "Morbihan",
+    "norddefrance": "Nord de France",
+    "nord-est": "Nord Est",
+    "nmp": "Nord Midi Pyrénées",
+    "normandie": "Normandie",
+    "normandie-seine": "Normandie Seine",
+    "paris": "Paris",
+    "pca": "Provence Côte d'Azur",
+    "pyrenees-gascogne": "Pyrénées Gascogne",
+    "reunion": "Réunion",
+    "sudmed": "Sud Méditerranée",
+    "sudrhonealpes": "Sud Rhône Alpes",
+    "toulouse31": "Toulouse",
+    "tourainepoitou": "Touraine Poitou",
+    "valdefrance": "Val de France",
+}
+
+DEPARTMENTS_TO_CA_REGIONS = {
+    ('2A', '2B'): ['corse'],
+    ('1',): ['centrest'],
+    ('2',): ['nord-est'],
+    ('3',): ['centrefrance'],
+    ('4', '6'): ['pca'],
+    ('5', '13'): ['alpesprovence'],
+    ('7',): ['sudrhonealpes', 'centrest'],
+    ('8',): ['nord-est'],
+    ('9',): ['sudmed'],
+    ('10', '21', '52', '89'): ['cb'],
+    ('11', '30', '34'): ['languedoc'],
+    ('12', '46', '81', '82'): ['nmp'],
+    ('14', '50', '76'): ['normandie'],
+    ('15', '23', '63'): ['centrefrance'],
+    ('16', '24'): ['charente-perigord'],
+    ('17',): ['cmds'],
+    ('18', '58'): ['centreloire'],
+    ('19', '61'): ['centrefrance'],
+    ('20',): ['corse'],
+    ('22',): ['cotesdarmor'],
+    ('25', '39'): ['franchecomte'],
+    ('26', '38', '69'): ['centrest', 'sudrhonealpes'],
+    ('27',): ['normandie-seine'],
+    ('28', '41', '78'): ['valdefrance'],
+    ('29',): ['cotesdarmor', 'finistere'],
+    ('31',): ['toulouse31'],
+    ('32',): ['aquitaine', 'pyrenees-gascogne'],
+    ('33', '40', '47'): ['aquitaine'],
+    ('35',): ['illeetvilaine'],
+    ('36', '87'): ['centreouest'],
+    ('37',): ['tourainepoitou'],
+    ('55', '57', '67', '88'): ['lorraine'],
+    ('44', '85'): ['atlantique-vendee'],
+    ('45',): ['briepicardie', 'centreloire'],
+    ('48',): ['languedoc'],
+    ('49', '53', '61', '72'): ['anjou-maine'],
+    ('59', '62'): ['norddefrance'],
+    ('64', '65'): ['pyrenees-gascogne'],
+    ('66',): ['sudmed'],
+    ('68',): ['alsace-vosges'],
+    ('70', '90'): ['franchecomte'],
+    ('71',): ['centrest'],
+    ('73', '74'): ['des-savoie'],
+    ('75', '91', '92', '93', '94', '95'): ['paris'],
+    ('79',): ['cmds'],
+    ('80',): ['briepicardie'],
+    ('83',): ['pca'],
+    ('84',): ['alpesprovence'],
+    ('86',): ['tourainepoitou'],
+    ('971',): ['guadeloupe'],
+    ('972', '973'): ['martinique'],
+    ('974',): ['reunion']
+}

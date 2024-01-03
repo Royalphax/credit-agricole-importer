@@ -2,10 +2,6 @@ from creditagricole import CreditAgricoleRegion
 from tool import *
 import requests
 import time
-from collections import defaultdict
-import copy
-import json
-from datetime import datetime
 from constant import *
 
 _TRANSACTIONS_ENDPOINT = 'api/v1/transactions'
@@ -17,6 +13,7 @@ class GetOrPostException(Exception):
     def __init__(self, message, response_json):
         super().__init__(message)
         self.response_json = response_json
+
 
 class Firefly3Client:
     def __init__(self, logger, debug):
@@ -38,7 +35,7 @@ class Firefly3Client:
         response = requests.post("{}{}".format(self.hostname, endpoint), json=payload, headers=self.headers)
         response_json = response.json()
         if response.status_code != 200:
-            raise GetOrPostException("POST-Request to your Firefly3 instance failed. Please double check your personal token.", response_json)            
+            raise GetOrPostException("POST-Request to your Firefly3 instance failed. Please double check your personal token.", response_json)
         return response_json
 
     def _get(self, endpoint, params=None):
@@ -83,8 +80,8 @@ class Firefly3Client:
     def create_budget(self, name):
         return self._post(_BUDGETS_ENDPOINT, {"name": name}).get("data")
 
-    def get_accounts(self, account_type = "asset"):
-        return self._get(_ACCOUNTS_ENDPOINT, params = {"type": account_type}).get("data")
+    def get_accounts(self, account_type="asset"):
+        return self._get(_ACCOUNTS_ENDPOINT, params={"type": account_type}).get("data")
 
     def create_account(self, name, region, account_number, family_code):
         payload = {
@@ -119,15 +116,14 @@ class Firefly3Importer:
         self.withdrawals = {}
         self.deposits = {}
         self.budgets = {}
-        self.budgets = {}
 
         for budget in f3_cli.get_budgets():
             budget_key = budget.get('attributes').get('name')
-            self.budgets.update({ 
+            self.budgets.update({
                 budget_key: budget
             })
 
-        for ca_transaction in ca_transactions: 
+        for ca_transaction in ca_transactions:
             f3_cli.logger.log(str(ca_transaction), debug=True)
 
             f3_transaction = self.ca_to_f3(ca_transaction)
@@ -157,11 +153,10 @@ class Firefly3Importer:
         budgets = get_key_from_value(self.f3_cli.aa_budget, transaction_name)
         budget_id = self.f3_cli.get_budget_id(budgets[0]) if len(budgets) != 0 else None
 
-        categories = get_key_from_value(self.f3_cli.aa_category, transaction_name)        
+        categories = get_key_from_value(self.f3_cli.aa_category, transaction_name)
         category_name = categories[0] if len(categories) != 0 else None
 
-        tags = []
-        tags.append(self.remove_unnecessary_spaces(ca_transaction["libelleTypeOperation"]))
+        tags = [self.remove_unnecessary_spaces(ca_transaction["libelleTypeOperation"])]
         for tag in get_key_from_value(self.f3_cli.aa_tags, transaction_name):
             tags.append(tag)
 
@@ -172,39 +167,39 @@ class Firefly3Importer:
 
         accounts = get_key_from_value(self.f3_cli.aa_account, transaction_name)
 
-        isWithdrawal = ca_transaction["montant"] < 0
-        isDeposit = ca_transaction["montant"] > 0
+        is_withdrawal = ca_transaction["montant"] < 0
+        is_deposit = ca_transaction["montant"] > 0
 
-        type = "withdrawal" if isWithdrawal else "deposit" if isDeposit else None
+        transaction_type = "withdrawal" if is_withdrawal else "deposit" if is_deposit else None
         subject_name = accounts[0] if len(accounts) > 0 else "Cash account"
-        source_id = self.account_id if isWithdrawal else None
-        source_name = subject_name if isDeposit else None
-        destination_id = self.account_id if isDeposit else None
-        destination_name = subject_name if isWithdrawal else None
+        source_id = self.account_id if is_withdrawal else None
+        source_name = subject_name if is_deposit else None
+        destination_id = self.account_id if is_deposit else None
+        destination_name = subject_name if is_withdrawal else None
         internal_reference = self.remove_unnecessary_spaces(ca_transaction["referenceClient"])
 
         # in some transactions, like "ca_codeTypeOperation == '00'" (VIREMENT EN VOTRE FAVEUR) this could be a nice way to identify the destination name of the transaction
-        #subject_name = self.libelleOperation_without_referenceClient(self.remove_unnecessary_spaces(ca_transaction.get('libelleOperation')), internal_reference)
+        # subject_name = self.libelleOperation_without_referenceClient(self.remove_unnecessary_spaces(ca_transaction.get('libelleOperation')), internal_reference)
 
         # not used except if you look into the notes. but isn't that an important field ?!
-        #additional_information = self.remove_unnecessary_spaces(ca_transaction["libelleComplementaire"])
+        # additional_information = self.remove_unnecessary_spaces(ca_transaction["libelleComplementaire"])
 
         return {
             'internal_reference': internal_reference,
             'description': description,
             'amount': amount,
             'currency_code': currency_code,
-            'type': type,
+            'type': transaction_type,
             'source_id': source_id,
             'source_name': source_name,
             'destination_id': destination_id,
             'destination_name': destination_name,
             'budget_id': budget_id,
             'date': date,
-            'external_id':external_id,
+            'external_id': external_id,
             'category_name': category_name,
             'tags': tags,
-            'notes': notes,    
+            'notes': notes,
         }
 
     @staticmethod
@@ -219,16 +214,18 @@ class Firefly3Importer:
         # Iterate over the split results and join them by spaces
         for i in range(1, len(splitted) + 1):
             cleaned_libelleOperation = ' '.join(splitted[:i])
-            recombined_libelleOperation = f'{cleaned_libelleOperation} {referenceClient}'[:len(libelleOperation)]
+            combined_libelleOperation = f'{cleaned_libelleOperation} {referenceClient}'[:len(libelleOperation)]
 
-            if recombined_libelleOperation == libelleOperation:
+            if combined_libelleOperation == libelleOperation:
                 return cleaned_libelleOperation
         return libelleOperation
 
     @staticmethod
     def extract_transfers(f3_transactions, f3_cli):
+        f3_cli.logger.log(f"-> Searching for transfers ... ", end=('\n\r' if f3_cli.logger.debug else ''))
+
         transfers = []
-        annulations = []
+        cancellations = []
         withdrawals = {}
         deposits = {}
 
@@ -236,20 +233,19 @@ class Firefly3Importer:
             withdrawals.update(f3_transaction.withdrawals.copy())
             deposits.update(f3_transaction.deposits.copy())
 
-        # searching for transfers
-        for withdrawal_fitid, withdrawal in withdrawals.items():
+        for withdrawal_fit_id, withdrawal in withdrawals.items():
             # the fitid/external_id of transfers always differ by 1
-            deposit_fitid = str(int(withdrawal_fitid) + 1)
-            deposit = deposits.get(deposit_fitid)
+            deposit_fit_id = str(int(withdrawal_fit_id) + 1)
+            deposit = deposits.get(deposit_fit_id)
 
             date = withdrawal.get('date')
             amount = withdrawal.get('amount')
             description = withdrawal.get('description')
 
-            isTransfer = deposit != None and withdrawal.get('source_id') != deposit.get('destination_id')
+            is_transfer = deposit is not None and withdrawal.get('source_id') != deposit.get('destination_id')
             # if we found a deposit with the fitid 1 higher than the withdrawal, and source != destination
-            if isTransfer:                        
-                type = 'transfer'
+            if is_transfer:
+                transaction_type = 'transfer'
                 category_name = withdrawal.get('category_name')
                 currency_code = withdrawal.get('currency_code')
                 budget_id = withdrawal.get('budget_id')
@@ -258,16 +254,16 @@ class Firefly3Importer:
                 destination_id = deposit.get('destination_id')
                 destination_name = deposit.get('destination_name')
                 tags = list(set(withdrawal.get('tags', []) + deposit.get('tags', [])))
-                internal_reference = withdrawal.get('internal_reference')            
-                external_id = f"{withdrawal.get('external_id')}-{deposit.get('external_id')}" # storing here both external_ids so that we can find and delete the source trasactions later on
+                internal_reference = withdrawal.get('internal_reference')
+                external_id = f"{withdrawal.get('external_id')}-{deposit.get('external_id')}"  # storing here both external_ids so that we can find and delete the source trasactions later on
                 notes = ', '.join([withdrawal.get('notes'), deposit.get('notes')])
 
-                f3_cli.logger.log(f"transfer detected => [{date}] '{description}': {amount}")
+                f3_cli.logger.log(f"Transfer detected => [{date}] {description} | {amount}", debug=True)
                 transfer = {
                     'description': description,
-                    'category_name':category_name,
+                    'category_name': category_name,
                     'date': date,
-                    'type': type,
+                    'type': transaction_type,
                     'amount': amount,
                     'currency_code': currency_code,
                     'budget_id': budget_id,
@@ -282,28 +278,32 @@ class Firefly3Importer:
                 }
                 transfers.append(transfer)
 
-            isAnnulation = deposit != None and deposit.get('codeTypeOperation') == "81"
-            if isAnnulation:
-                f3_cli.logger.log(f"annulation detected => [{date}] '{description}': {amount}")
-                annulations.append({
-                    'external_id': external_id,
+            is_cancellation = deposit is not None and deposit.get('codeTypeOperation') == "81"
+            if is_cancellation:
+                f3_cli.logger.log(f"Cancellation detected => [{date}] {description} | {amount}", debug=True)
+                cancellations.append({
+                    'external_id': external_id,  # TODO FIX : external_id could be not defined
                 })
 
-        for transfer in (transfers + annulations):
+        f3_cli.logger.log(f"{str(len(transfers))} found!", end=('\n\r' if len(cancellations) == 0 else ''))
+        if len(cancellations) > 0:
+            f3_cli.logger.log(f" and {str(len(cancellations))} cancellation(s) detected!")
+
+        for transfer in (transfers + cancellations):
             for f3_transaction in f3_transactions:
                 external_id = transfer.get('external_id')
-                fitids = external_id.split('-')
-                withdrawal_fitid = fitids[0]
-                if withdrawal_fitid in f3_transaction.withdrawals.keys():
-                    del f3_transaction.withdrawals[withdrawal_fitid]
-                deposit_fitid = fitids[1]
-                if deposit_fitid in f3_transaction.deposits.keys():
-                    del f3_transaction.deposits[deposit_fitid]
+                fit_ids = external_id.split('-')
+                withdrawal_fit_id = fit_ids[0]
+                if withdrawal_fit_id in f3_transaction.withdrawals.keys():
+                    del f3_transaction.withdrawals[withdrawal_fit_id]
+                deposit_fit_id = fit_ids[1]
+                if deposit_fit_id in f3_transaction.deposits.keys():
+                    del f3_transaction.deposits[deposit_fit_id]
 
         return transfers
 
     @staticmethod
-    def doImport(f3_importer_list, f3_cli):
+    def do_import(f3_importer_list, f3_cli):
         transactions = []
 
         if f3_cli.auto_detect_transfers:
@@ -319,11 +319,10 @@ class Firefly3Importer:
         if transactions_len > 0:
             f3_cli.logger.log(f'-> Pushing {transactions_len} transactions to Firefly3 instance.')
             sorted_transactions = sorted(transactions, key=lambda x: x['date'])
+            duplicated_transactions_count = 0
             for transaction in sorted_transactions:
-                duplicates_count = 0;
-
                 try:
-                    print(f"[{transaction.get('date')}] ({transaction.get('external_id')}) {transaction.get('type')}: {transaction.get('amount')} | {transaction.get('description')}")
+                    f3_cli.logger.log(f"[{transaction.get('date')}] ({transaction.get('external_id')}) {transaction.get('type')}: {transaction.get('amount')} | {transaction.get('description')}")
                     res = f3_cli._post(endpoint=_TRANSACTIONS_ENDPOINT, payload={
                         "error_if_duplicate_hash": "true",
                         "transactions": [transaction]
@@ -331,13 +330,11 @@ class Firefly3Importer:
                     f3_cli.logger.log(str(res), debug=True)
                 except GetOrPostException as e:
                     message = e.response_json.get('message')
-                    if not "Duplicate of transaction " in str(message):
-                        print(transaction)
-                        raise Exception(message)
-                    f3_cli.logger.log(f'skipped duplicate_ {transaction}', debug=True)
-                    duplicates_count += 1
+                    if "Duplicate of transaction " not in str(message):
+                        f3_cli.logger.debug(transaction)
+                        f3_cli.logger.error(message)
+                    f3_cli.logger.log(f'Skipped duplicate : {transaction}', debug=True)
+                    duplicated_transactions_count += 1
 
-                if duplicates_count == 1:
-                    f3_cli.logger.log('1 duplicate skipped')        
-                elif duplicates_count > 1:
-                    f3_cli.logger.log(f'{duplicates_count} duplicates skipped')                 
+            if duplicated_transactions_count > 0:
+                f3_cli.logger.log(f'  -> {duplicated_transactions_count} duplicated transactions skipped.')

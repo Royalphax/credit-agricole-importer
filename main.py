@@ -1,6 +1,8 @@
 import configparser
 import os
+import time
 
+import tool
 from constant import *
 from creditagricole import CreditAgricoleClient
 from firefly3 import Firefly3Client, Firefly3Importer
@@ -91,14 +93,15 @@ if __name__ == '__main__':
         f3_cli.init_auto_assign_values(a_rename_transaction_section, aa_budget_section, aa_category_section, aa_account_section, aa_tags_section)
         f3_cli.validate()
 
-        # Start main process
+        # Start main process and timer
+        start_time = time.time()
         logger.log("Process started, debug=" + str(debug) + ", save_logs=" + str(save_logs))
 
         # Get Firefly3 accounts by number
         f3_account_dict = {}
         for f3_account in f3_cli.get_accounts():
             account_key = f3_account.get('attributes').get('account_number')
-            f3_account_dict.update({ account_key: f3_account })
+            f3_account_dict.update({account_key: f3_account})
 
         # Get Credit-Agricole accounts and Detect duplicate account names
         ca_account_dict = {}
@@ -107,7 +110,7 @@ if __name__ == '__main__':
             account_key = ca_account.account.get('libelleProduit')
             ca_numeroCompte = ca_account.numeroCompte
             account_name_counts[account_key] += 1
-            ca_account_dict.update({ ca_numeroCompte: ca_account })
+            ca_account_dict.update({ca_numeroCompte: ca_account})
 
         f3_importer_list = []
         # Loop through existing CreditAgricole accounts declared in config file
@@ -125,25 +128,28 @@ if __name__ == '__main__':
                 f3_account = f3_account_dict.get(ca_numeroCompte)
             else:
                 logger.log("  -> Creating account ... ", end='')
-                if ca_account.grandeFamilleCode == "7": # 7 is generally for investment accounts                    
+                if ca_account.grandeFamilleCode == "7":  # 7 is generally for investment accounts
                     logger.log("Not an asset account!")
                     continue
 
-                f3_account = f3_cli.create_account(name, ca_cli.department, ca_numeroCompte, ca_account.grandeFamilleCode).get('data')
-                f3_account_dict.update({ ca_numeroCompte: f3_account })
-                logger.log("Done!")            
+                f3_account = f3_cli.create_account(name, ca_cli.region_id, ca_numeroCompte, ca_account.grandeFamilleCode).get('data')
+                f3_account_dict.update({ca_numeroCompte: f3_account})
+                logger.log("OK")
             f3_account_id = f3_account.get('id')
 
-            logger.log("  -> Retrieving transactions ", end=('\n\r' if debug else ''))
+            logger.log("  -> Retrieving transactions ... ", end=('\n\r' if debug else ''))
             ca_transactions = ca_cli.get_transactions(ca_numeroCompte)
-            
+
             # Init a new set of transactions for Firefly3
             f3_importer = Firefly3Importer(f3_cli, f3_account_id, ca_transactions)
             f3_importer_list.append(f3_importer)
 
-            logger.log(" " + str(len(f3_importer)) + " found!")
+            logger.log(str(len(f3_importer)) + " found!")
 
-        Firefly3Importer.doImport(f3_importer_list, f3_cli)
+        Firefly3Importer.do_import(f3_importer_list, f3_cli)
+
+        end_time = time.time()
+        logger.log(f"Process ended, time elapsed: {tool.convert_time((end_time - start_time))}")
 
         if save_logs:
             logger.write_log(max_logs)

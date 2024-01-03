@@ -35,19 +35,30 @@ class Logger:
 
     def write_log(self, max_logs):
         if not os.path.exists(self.log_folder_path):
-            os.mkdir(self.log_folder_path)
-        f = open(self.curr_log_path, 'w', encoding='UTF8')
-        f.write("\n".join(self.logs))
-        f.close()
+            os.makedirs(self.log_folder_path)
+        # Write logs
+        with open(self.curr_log_path, 'w', encoding='UTF8') as f:
+            f.write("\n".join(self.logs))
+        # Delete older logs if needed
         if max_logs > 0:
             dir_list = os.listdir(self.log_folder_path)
             while len(dir_list) > max_logs:
-                older_file_number = int(dir_list[0][:-4])
+                older_file_number = float('inf')
+                older_file = ''
                 for file in dir_list:
-                    if older_file_number > int(dir_list[0][:-4]):
-                        older_file_number = int(dir_list[0][:-4])
-                os.remove(os.path.join(self.log_folder_path, str(older_file_number) + ".log"))
-                dir_list = os.listdir(self.log_folder_path)
+                    if file.endswith('.log'):
+                        try:
+                            file_number = int(file[:-4])
+                            if file_number < older_file_number:
+                                older_file_number = file_number
+                                older_file = file
+                        except ValueError:
+                            continue
+                # Delete the older log
+                if older_file:
+                    os.remove(os.path.join(self.log_folder_path, older_file))
+                    dir_list = os.listdir(self.log_folder_path)
+
 
 
 

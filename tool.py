@@ -42,3 +42,23 @@ def is_equal(value, str_to_check):
     elif value == str_to_check:
         output = True
     return output
+
+
+def convert_time(seconds):
+    def pluralize(unit, name, is_seconds=False):
+        unit_rounded = round(unit, 1) if is_seconds else unit
+        if unit_rounded == 1:
+            return f"{unit_rounded} {name}"
+        else:
+            return f"{unit_rounded} {name}s"
+
+    seconds_rounded = round(seconds, 1)
+    if seconds_rounded < 60:
+        return pluralize(seconds_rounded, "second", True)
+    elif seconds_rounded < 3600:
+        minutes, seconds = divmod(seconds_rounded, 60)
+        return f"{pluralize(minutes, 'minute')}, {pluralize(seconds, 'second', True)}"
+    else:
+        hours, remainder = divmod(seconds_rounded, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{pluralize(hours, 'hour')}, {pluralize(minutes, 'minute')}, {pluralize(seconds, 'second', True)}"
