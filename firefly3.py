@@ -160,10 +160,11 @@ class Firefly3Importer:
         for tag in get_key_from_value(self.f3_cli.aa_tags, transaction_name):
             tags.append(tag)
 
-        notes = "---------- MORE DETAILS ----------"
+        notesLines = ["---------- MORE DETAILS ----------"]
         for key in ca_transaction.keys():
-            notes = notes + '\n\n' + str(key) + ": " + str(ca_transaction[key]).strip()
-        notes = notes[:-2]
+            noteLine = str(key) + ": " + str(ca_transaction[key]).strip()
+            notesLines.append(noteLine)
+        notes = '\n\n'.join(notesLines)
 
         accounts = get_key_from_value(self.f3_cli.aa_account, transaction_name)
 
