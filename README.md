@@ -23,9 +23,9 @@ _*These features are already features of FireflyIII thanks to [automated rules](
 * Stable and working release :
 ```
 cd /path/you/want
-wget https://github.com/Royalphax/credit-agricole-importer/archive/refs/tags/v0.3.0.zip
-unzip v0.3.0.zip
-cd credit-agricole-importer-0.3.0
+wget https://github.com/Royalphax/credit-agricole-importer/archive/refs/tags/v0.3.1.zip
+unzip v0.3.1.zip
+cd credit-agricole-importer-0.3.1
 pip install -r requirements.txt
 ```
 * or Latest version of the code :
