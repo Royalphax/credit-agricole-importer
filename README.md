@@ -12,10 +12,10 @@ made with use of [python-creditagricole-particuliers](https://github.com/dmachar
 - Auto import choosen accounts
 - Auto import transactions from customizable period
 - Limit number of transactions to import
-- Auto assign budget, category, tags, expense/revenue account on transactions depending on their description*
-  - And even auto rename them!*
+- Auto assign budget, category, tags, expense/revenue account on transactions depending on their description<b>*</b>
+  - And even auto rename them!<b>*</b>
 
-_*These features are already features of FireflyIII thanks to [automated rules](https://docs.firefly-iii.org/how-to/firefly-iii/features/rules/). I also implemented them to allow you to quickly create rules directly in the config file._
+<b>*</b>_Although these functionalities are available in the FireflyIII dashboard with [automated rules](https://docs.firefly-iii.org/how-to/firefly-iii/features/rules/), they have been integrated into credit-agricole-importer. This integration allows for the execution of these actions directly through the application, bypassing the need for the [FireflyIII](https://github.com/firefly-iii/firefly-iii) instance._
 
 ## How to install
 
