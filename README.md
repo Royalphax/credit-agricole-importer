@@ -15,7 +15,7 @@ made with use of [python-creditagricole-particuliers](https://github.com/dmachar
 - Auto assign budget, category, tags, expense/revenue account on transactions depending on their description*
   - And even auto rename them!*
 
-_*These features are already features of FireflyIII thanks to [automated rules](https://docs.firefly-iii.org/firefly-iii/pages-and-features/rules/). I also implemented them to allow you to quickly create rules directly in the config file._
+_*These features are already features of FireflyIII thanks to [automated rules](https://docs.firefly-iii.org/how-to/firefly-iii/features/rules/). I also implemented them to allow you to quickly create rules directly in the config file._
 
 ## How to install
 
