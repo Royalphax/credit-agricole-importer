@@ -95,7 +95,6 @@ class CreditAgricoleRegion:
         openstreetmap_headers = {'User-Agent': 'credit-agricole-importer'}
         response = requests.get(url, headers=openstreetmap_headers).json()
 
-        response = requests.get(url).json()
         if len(response) > 0 and "lon" in response[0] and "lat" in response[0]:
             self.longitude = str(response[0]['lon'])
             self.latitude = str(response[0]['lat'])
