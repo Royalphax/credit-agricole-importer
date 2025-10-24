@@ -8,6 +8,9 @@
 Automatic import of [Credit Agricole](https://www.credit-agricole.fr/) accounts and transactions into [FireflyIII](https://github.com/firefly-iii/firefly-iii) personal finance manager, 
 made with use of [python-creditagricole-particuliers](https://github.com/dmachard/python-creditagricole-particuliers).
 
+# ⚠️ Important notice
+This project originally relied heavily on the [creditagricole-particuliers](https://files.pythonhosted.org/packages/3c/f1/6c2cd1be9ee3dcf90425239ad93ebca6be3a80b8c1bfbd9439a642a4a5a6/creditagricole_particuliers-0.14.3.tar.gz) library, which has since been voluntarily removed by its author for legal reasons, as they did not wish to be associated with any use that could potentially conflict with French law, a position we fully understand and respect. This event serves as a sobering reminder that our money does not truly belong to us and that open banking remains a distant promise. What began as an experiment in transparency and empowerment ultimately revealed the structural limits of both. I want to express my deep gratitude to all contributors who supported and believed in this project.
+
 ## Features
 - Auto import choosen accounts
 - Auto import transactions from customizable period
